@@ -62,7 +62,7 @@ export default function Signup() {
               <div className="p-2 rounded-xl bg-primary/10">
                 <BookMarked className="h-6 w-6 text-primary" />
               </div>
-              <span className="text-xl font-bold text-foreground">TrackSys</span>
+              <span className="text-xl font-bold text-foreground">Libflow</span>
             </div>
             <h1 className="text-2xl font-bold text-foreground">Create account</h1>
             <p className="text-muted-foreground">Create a staff account for the library desk</p>

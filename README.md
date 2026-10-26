@@ -1,6 +1,6 @@
-# TrackSys
+# Libflow
 
-TrackSys is a library occupancy and visit-tracking system for the FST Library. It records student visits, baggage information, zone status, session duration, and movement history so library staff can monitor occupancy and manage exits from a simple operations dashboard.
+Libflow is a library occupancy and visit-tracking system for the FST Library. It records student visits, baggage information, zone status, session duration, and movement history so library staff can monitor occupancy and manage exits from a simple operations dashboard.
 
 ## Current Pilot Features
 
@@ -219,7 +219,7 @@ For production, add a scheduled Supabase job, Edge Function, or server worker if
 ## Project Structure
 
 ```text
-tracksys/
+Libflow/
 ├── README.md
 ├── supabase/
 │   └── migrations/

@@ -55,7 +55,7 @@ export default function Login() {
               <div className="p-2 rounded-xl bg-primary/10">
                 <BookMarked className="h-6 w-6 text-primary" />
               </div>
-              <span className="text-xl font-bold text-foreground">TrackSys</span>
+              <span className="text-xl font-bold text-foreground">Libflow</span>
             </div>
             <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
             <p className="text-muted-foreground">Sign in to open the staff reading room</p>

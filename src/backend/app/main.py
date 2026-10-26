@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.backend.app.campus.router import router as campus_router
 from src.backend.app.library.router import router as library_router
 
-app = FastAPI(title="TrackSys API", version="0.1.0")
+app = FastAPI(title="Libflow API", version="0.1.0")
 app.include_router(campus_router)
 app.include_router(library_router)
 
