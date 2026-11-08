@@ -24,7 +24,7 @@ export function Header() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-foreground">
-                Track<span className="text-primary">Sys</span>
+                Lib<span className="text-primary">Flow</span>
               </h1>
               <p className="text-xs text-muted-foreground">Staff operations console</p>
             </div>
