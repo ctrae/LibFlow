@@ -18,8 +18,7 @@ class Zone(str, Enum):
 
 
 class SessionStatus(str, Enum):
-    waiting = "waiting"
-    inside = "inside"
+    active = "active"
     exited = "exited"
     expired = "expired"
 
@@ -61,7 +60,7 @@ class LibrarySession(BaseModel):
     duration_minutes: int
     baggage_info: str
     zone: Zone | None = None
-    status: SessionStatus = SessionStatus.waiting
+    status: SessionStatus = SessionStatus.active
     created_at: datetime
     expires_at: datetime
     updated_at: datetime
@@ -79,7 +78,7 @@ def make_short_code() -> str:
 
 
 def refresh_expired(session: LibrarySession) -> LibrarySession:
-    if session.status == SessionStatus.inside and session.expires_at <= datetime.now(timezone.utc):
+    if session.status == SessionStatus.active and session.expires_at <= datetime.now(timezone.utc):
         session.status = SessionStatus.expired
         session.updated_at = datetime.now(timezone.utc)
     return session

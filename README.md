@@ -4,7 +4,7 @@ Libflow is a library occupancy and visit-tracking system for the FST Library. It
 
 ## Current Pilot Features
 
-- QR-friendly student registration page at `/student`
+- QR-friendly student registration page at `/students`
 - Student registration with:
   - Full name
   - `@mymona.uwi.edu` email validation
@@ -15,7 +15,7 @@ Libflow is a library occupancy and visit-tracking system for the FST Library. It
 - Student status page with remaining time, zone, status, and baggage details
 - Admin dashboard with occupancy and recent activity
 - Live session page at `/live-sessions`
-- Bag check page at `/bag-checks`
+- Bag check page at `/bags`
 - Analytics page at `/analytics`
 - Security override dashboard at `/overrides`
 - Main dashboard QR code linking to the student registration page
@@ -174,7 +174,7 @@ Useful endpoints in the optional service:
 | `duration_minutes` | 15, 30, 45, or 60 |
 | `baggage_info` | Bag description or `No bag declared` |
 | `zone` | `Main section` or `Basement` |
-| `status` | `waiting`, `inside`, `exited`, or `expired` |
+| `status` | `active`, `exited`, or `expired` |
 | `created_at` | Registration time |
 | `expires_at` | Calculated time limit |
 | `updated_at` | Last status update |
@@ -207,7 +207,7 @@ A student can register multiple visits in one day. Each visit is a separate row 
 2. Find the student by name, ID suffix, or access code.
 3. Set the student's zone to Main section or Basement.
 4. Set the state to Inside, Exited, Waiting, or Expired.
-5. Use `/bag-checks` to verify and close held baggage claims.
+5. Use `/bags` to verify and close held baggage claims.
 6. Use `/analytics` to review traffic by time range.
 
 ## Expiry Behavior

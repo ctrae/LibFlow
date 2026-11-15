@@ -1,1 +1,1 @@
-"""UWI Pulse application package."""
+"""LibFlow application package."""

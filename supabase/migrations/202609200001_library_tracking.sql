@@ -1,38 +1,62 @@
+-- Users table representing User, Student, and AuthorizedUser hierarchies
+create table if not exists public.users (
+  user_id uuid primary key default gen_random_uuid(), -- userID
+  email text not null unique check (lower(email) like '%@mymona.uwi.edu'), -- email
+  user_type text not null check (user_type in ('Student', 'HeadLibrarian', 'LibraryStaff')),
+  student_id integer unique, -- studentID for Students
+  staff_id integer unique, -- staffID for AuthorizedUsers
+  department text, -- department for AuthorizedUsers
+  assigned_zone text check (assigned_zone in ('Bag Staff', 'Security')) -- assignedZone for LibraryStaff
+);
+
+-- Library Sessions table aligned with the Session class
 create table if not exists public.library_sessions (
-  id uuid primary key default gen_random_uuid(),
-  name text not null check (char_length(name) between 2 and 120),
-  email text not null check (lower(email) like '%@mymona.uwi.edu'),
-  student_id text not null,
-  short_code text not null unique check (short_code ~ '^[A-Z0-9]{4}$'),
-  duration_minutes integer not null check (duration_minutes in (15, 30, 45, 60)),
-  baggage_info text not null default 'No bag declared',
-  zone text check (zone in ('Main section', 'Basement')),
-  status text not null default 'waiting' check (status in ('waiting', 'inside', 'exited', 'expired')),
+  session_id uuid primary key default gen_random_uuid(), -- sessionID
+  user_id uuid references public.users(user_id), -- userID
+  student_id integer not null, -- studentID
+  short_code text not null unique check (short_code ~ '^[A-Z0-9]{4}$'), -- shortCode
+  check_in_time timestamptz not null default now(), -- checkInTime
+  check_out_time timestamptz, -- checkOutTime
+  duration_minutes integer not null check (duration_minutes in (15, 30, 45, 60)), -- durationMinutes
+  allotted_time integer not null default 30, -- allottedTime
+  bag_amount integer not null default 0, -- bagAmount
+  zone text check (zone in ('Main', 'Basement')), -- zone: enum (Main / Basement)
+  session_status text not null default 'active' check (session_status in ('active', 'exited', 'expired')), -- session_status: enum (active / exited / expired)
   created_at timestamptz not null default now(),
-  expires_at timestamptz not null default (now() + interval '30 minutes'),
   updated_at timestamptz not null default now()
 );
 
-create index if not exists library_sessions_short_code_idx on public.library_sessions (short_code);
-create index if not exists library_sessions_created_at_idx on public.library_sessions (created_at desc);
-create index if not exists library_sessions_status_zone_idx on public.library_sessions (status, zone);
+-- Optional Bags table aligned with the Bag class
+create table if not exists public.bags (
+  bag_tag text primary key, -- bag_tag
+  session_id uuid not null references public.library_sessions(session_id) on delete cascade,
+  baggage_info text not null default 'No bag declared' -- baggageInfo
+);
 
-create table if not exists public.library_session_events (
-  id uuid primary key default gen_random_uuid(),
-  session_id uuid not null references public.library_sessions(id) on delete cascade,
-  event_type text not null,
-  zone text check (zone in ('Main section', 'Basement')),
+-- Report Analytics table aligned with the Report class
+create table if not exists public.analytics (
+  report_id uuid primary key default gen_random_uuid(), -- reportID
+  start_date date not null, -- startDate
+  end_date date not null, -- endDate
+  total_occupancy integer not null default 0, -- totalOccupancy
+  peak_hour integer not null check (peak_hour between 0 and 23), -- peakHour
   created_at timestamptz not null default now()
 );
 
-create index if not exists library_session_events_session_idx on public.library_session_events (session_id, created_at desc);
+-- Indexes for performance
+create index if not exists library_sessions_short_code_idx on public.library_sessions (short_code);
+create index if not exists library_sessions_check_in_idx on public.library_sessions (check_in_time desc);
+create index if not exists library_sessions_status_zone_idx on public.library_sessions (session_status, zone);
 
+-- Trigger function for automatic check-out / expiry handling based on Session attributes
 create or replace function public.set_library_session_expiry()
 returns trigger
 language plpgsql
 as $$
 begin
-  new.expires_at := new.created_at + make_interval(mins => new.duration_minutes);
+  if new.check_out_time is null then
+    new.check_out_time := new.check_in_time + make_interval(mins => new.duration_minutes);
+  end if;
   new.updated_at := now();
   return new;
 end;
@@ -40,12 +64,16 @@ $$;
 
 drop trigger if exists library_session_expiry on public.library_sessions;
 create trigger library_session_expiry
-before insert or update of duration_minutes, created_at on public.library_sessions
+before insert or update of duration_minutes, check_in_time on public.library_sessions
 for each row execute function public.set_library_session_expiry();
 
+-- Row Level Security (RLS)
+alter table public.users enable row level security;
 alter table public.library_sessions enable row level security;
-alter table public.library_session_events enable row level security;
+alter table public.bags enable row level security;
+alter table public.analytics enable row level security;
 
+-- Policies for pilot access
 drop policy if exists "public can register library sessions" on public.library_sessions;
 create policy "public can register library sessions"
 on public.library_sessions for insert to anon, authenticated
@@ -62,10 +90,6 @@ on public.library_sessions for update to anon, authenticated
 using (true)
 with check (true);
 
-drop policy if exists "public can log library session events during pilot" on public.library_session_events;
-create policy "public can log library session events during pilot"
-on public.library_session_events for insert to anon, authenticated
-with check (true);
-
-comment on table public.library_sessions is 'Pilot library visits. Replace open pilot policies with staff/student access controls before production.';
-comment on table public.library_session_events is 'Append-only movement and status history for library visits.';
+comment on table public.library_sessions is 'Library visit sessions updated to match class diagram attributes (checkInTime, checkOutTime, allottedTime, bagAmount, session_status).';
+comment on table public.bags is 'Optional bag storage tracking linked to sessions.';
+comment on table public.analytics is 'Analytics and occupancy reports generated by HeadLibrarian.';
