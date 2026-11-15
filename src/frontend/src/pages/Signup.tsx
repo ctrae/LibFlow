@@ -1,133 +1,117 @@
 'use client';
 
-import { useState } from 'react';
+import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { BookMarked, Loader2 } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function Signup() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    staffId: '',
+    department: '',
+    assignedZone: 'Security',
+  });
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const email = form.email.trim().toLowerCase();
+      if (!email.endsWith('@mymona.uwi.edu')) throw new Error('Use your @mymona.uwi.edu work email address.');
+      if (!/^\d{1,9}$/.test(form.staffId.trim())) throw new Error('Enter a staff ID containing up to 9 digits.');
+
+      const { data, error } = await supabase.auth.signUp({
         email,
-        password,
+        password: form.password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/login`,
           data: {
-            display_name: displayName,
+            full_name: form.fullName.trim(),
+            staff_id: form.staffId.trim(),
+            department: form.department.trim(),
+            assigned_zone: form.assignedZone,
           },
         },
       });
-
       if (error) throw error;
 
+      if (data.session) {
+        toast({ title: 'Request submitted', description: 'Sign in after the Head Librarian approves your staff account.' });
+        router.replace('/pending');
+      } else {
+        toast({ title: 'Confirm your email', description: 'Check your inbox, then sign in. Your staff account will need admin approval.' });
+        router.replace('/login');
+      }
+    } catch (caught) {
       toast({
-        title: "Account created!",
-        description: "You can now sign in to the dashboard.",
-      });
-      router.push('/');
-    } catch (error) {
-      toast({
-        title: "Signup failed",
-        description: error.message || "Could not create account",
-        variant: "destructive",
+        title: 'Request failed',
+        description: caught instanceof Error ? caught.message : 'Could not create the staff account',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
-        <div className="glass-card rounded-2xl p-8 space-y-6">
-          {/* Logo */}
-          <div className="text-center space-y-2">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="p-2 rounded-xl bg-primary/10">
-                <BookMarked className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-xl font-bold text-foreground">Libflow</span>
+        <div className="glass-card space-y-6 rounded-2xl p-8">
+          <div className="space-y-2 text-center">
+            <div className="mb-4 flex justify-center">
+              <BrandLogo size={112} className="rounded-2xl" />
             </div>
-            <h1 className="text-2xl font-bold text-foreground">Create account</h1>
-            <p className="text-muted-foreground">Create a staff account for the library desk</p>
+            <h1 className="text-2xl font-bold text-foreground">Request staff access</h1>
+            <p className="text-muted-foreground">Staff accounts remain pending until approved by the Head Librarian.</p>
           </div>
-
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input
-                id="displayName"
-                type="text"
-                placeholder="Your name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-                className="h-11"
-              />
+              <Label htmlFor="full-name">Full name</Label>
+              <Input id="full-name" autoComplete="name" value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} required className="h-11" />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="johndoe@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-11"
-              />
+              <Label htmlFor="email">Work email</Label>
+              <Input id="email" type="email" autoComplete="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11" />
             </div>
-
+            <div className="space-y-2">
+              <Label htmlFor="staff-id">Staff ID</Label>
+              <Input id="staff-id" inputMode="numeric" value={form.staffId} onChange={(event) => setForm({ ...form, staffId: event.target.value })} required className="h-11" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="department">Department</Label>
+              <Input id="department" value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} required className="h-11" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="assigned-zone">Assigned zone</Label>
+              <select id="assigned-zone" value={form.assignedZone} onChange={(event) => setForm({ ...form, assignedZone: event.target.value })} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="Security">Security</option>
+                <option value="Bag Staff">Bag Staff</option>
+              </select>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="h-11"
-              />
+              <Input id="password" type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="h-11" />
             </div>
-
-            <Button type="submit" className="w-full h-11" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating account...
-                </>
-              ) : (
-                "Create account"
-              )}
+            <Button type="submit" className="h-11 w-full" disabled={isLoading}>
+              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : 'Submit for approval'}
             </Button>
           </form>
-
-          {/* Footer */}
           <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link href="/login" className="text-primary hover:underline font-medium">
-              Sign in
-            </Link>
+            Already registered?{' '}
+            <Link href="/login" className="font-medium text-primary hover:underline">Sign in</Link>
           </p>
         </div>
       </div>

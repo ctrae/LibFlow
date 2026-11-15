@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type LibraryZone = 'Main section' | 'Basement';
-export type SessionStatus = 'waiting' | 'inside' | 'exited' | 'expired';
+export type SessionStatus = 'active' | 'exited' | 'expired';
 
 export type LibrarySession = {
   id: string;
@@ -22,37 +22,42 @@ export async function registerStudent(payload: { name: string; email: string; st
   const normalizedEmail = payload.email.trim().toLowerCase();
   if (!normalizedEmail.endsWith('@mymona.uwi.edu')) throw new Error('Use your @mymona.uwi.edu email address');
   if (![15, 30, 45, 60].includes(payload.duration_minutes)) throw new Error('Choose a stay between 15 and 60 minutes');
+  const studentId = Number(payload.student_id.trim());
+  if (!Number.isSafeInteger(studentId) || studentId < 0) throw new Error('Enter a valid student ID number');
 
-  const { data, error } = await supabase.from('library_sessions').insert({
-    name: payload.name.trim(),
-    email: normalizedEmail,
-    student_id: payload.student_id.trim(),
-    duration_minutes: payload.duration_minutes,
-    baggage_info: payload.baggage_info.trim() || 'No bag declared',
-    short_code: createShortCode(),
-    status: 'waiting',
-  }).select().single();
-  if (error) throw new Error(formatSupabaseError(error.message));
-  await supabase.from('library_session_events').insert({ session_id: data.id, event_type: 'registered', zone: null });
+  const { data, error } = await supabase.rpc('register_library_visit', {
+    p_name: payload.name.trim(),
+    p_email: normalizedEmail,
+    p_student_id: studentId,
+    p_duration_minutes: payload.duration_minutes,
+    p_baggage_info: payload.baggage_info.trim() || 'No bag declared',
+    p_short_code: createShortCode(),
+  });
+  if (error) throw new Error(formatSupabaseError(error));
   return normalizeSession(data as LibrarySession);
 }
 
 export async function getStudentStatus(code: string) {
-  const { data, error } = await supabase.from('library_sessions').select('*').eq('short_code', code.toUpperCase()).single();
-  if (error) throw new Error(formatSupabaseError(error.message, 'Access code not found'));
-  return normalizeSession(data as LibrarySession);
+  const { data, error } = await supabase.rpc('get_library_session_by_code', { p_short_code: code.toUpperCase() });
+  if (error) throw new Error(formatSupabaseError(error, 'Access code not found'));
+  const session = (data as LibrarySession[] | null)?.[0];
+  if (!session) throw new Error('Access code not found');
+  return normalizeSession(session);
 }
 
 export async function getAdminSessions() {
   const { data, error } = await supabase.from('library_sessions').select('*').order('created_at', { ascending: false });
-  if (error) throw new Error(formatSupabaseError(error.message));
+  if (error) throw new Error(formatSupabaseError(error));
   return (data || []).map((session) => normalizeSession(session as LibrarySession));
 }
 
 export async function updateAdminStatus(id: string, zone: LibraryZone, status: SessionStatus) {
-  const { data, error } = await supabase.from('library_sessions').update({ zone, status }).eq('id', id).select().single();
-  if (error) throw new Error(formatSupabaseError(error.message));
-  await supabase.from('library_session_events').insert({ session_id: id, event_type: status, zone });
+  const { data, error } = await supabase.rpc('update_library_session_status', {
+    p_session_id: id,
+    p_zone: zone,
+    p_status: status,
+  });
+  if (error) throw new Error(formatSupabaseError(error));
   return normalizeSession(data as LibrarySession);
 }
 
@@ -68,9 +73,12 @@ function normalizeSession(session: LibrarySession): LibrarySession {
   return session;
 }
 
-function formatSupabaseError(message: string, fallback = 'Unable to complete the library request') {
-  if (message.includes('PGRST205') || message.includes('library_sessions')) {
-    return 'The library tables are not installed in Supabase yet. Run supabase/migrations/202609200001_library_tracking.sql in the Supabase SQL Editor.';
+function formatSupabaseError(error: { message: string; code?: string }, fallback = 'Unable to complete the library request') {
+  if (error.code === 'PGRST202' || error.code === 'PGRST205') {
+    return 'The library tables are not installed in Supabase yet. Run all SQL migrations in supabase/migrations/ in timestamp order, setting the initial admin email before the final migration.';
   }
-  return message || fallback;
+  if (error.code === 'PGRST204') {
+    return 'The Supabase library schema is out of date. Run the latest migration in supabase/migrations/ in the Supabase SQL Editor.';
+  }
+  return error.message || fallback;
 }

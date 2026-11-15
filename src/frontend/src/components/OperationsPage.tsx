@@ -4,15 +4,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BookOpenCheck, Check, ClipboardCheck, Download, Filter, LineChart, Loader2, RefreshCw, Search, Users, type LucideIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
+import { AuthGate } from '@/components/AuthGate';
 import { getAdminSessions, LibrarySession, LibraryZone, SessionStatus, updateAdminStatus } from '@/lib/libraryApi';
 
 export type OperationsView = 'sessions' | 'bags' | 'analytics';
 
-const demoSessions: LibrarySession[] = [
-  { id: 'demo-1', name: 'Amara Lewis', email: 'amara@mymona.uwi.edu', student_id: '000004821', short_code: 'AM42', duration_minutes: 60, baggage_info: 'No bag declared', zone: 'Main section', status: 'inside', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 35 * 60000).toISOString(), updated_at: new Date().toISOString() },
-];
-
 export function OperationsPage({ view }: { view: OperationsView }) {
+  return <AuthGate><OperationsContent view={view} /></AuthGate>;
+}
+
+function OperationsContent({ view }: { view: OperationsView }) {
   const router = useRouter();
   const [sessions, setSessions] = useState<LibrarySession[]>([]);
   const [query, setQuery] = useState('');
@@ -33,8 +34,8 @@ export function OperationsPage({ view }: { view: OperationsView }) {
   const title = view === 'sessions' ? 'Live sessions' : view === 'bags' ? 'Bag checks' : 'Analytics';
   const description = view === 'sessions' ? 'Track active library sessions and zone transitions as they happen.' : view === 'bags' ? 'Review held bags and close out claims at the main exit.' : 'Understand traffic patterns and daily library usage.';
   const visibleSessions = sessions.filter((session) => [session.name, session.student_id, session.short_code, session.zone || '', session.status].some((value) => value.toLowerCase().includes(query.toLowerCase())));
-  const bagRows = sessions.filter((session) => session.baggage_info !== 'No bag declared' && session.status !== 'exited');
-  const activeSessions = sessions.filter((session) => session.status === 'inside');
+  const bagRows = sessions.filter((session) => session.baggage_info !== 'No bag declared' && session.status === 'active');
+  const activeSessions = sessions.filter((session) => session.status === 'active');
   const mainCount = activeSessions.filter((session) => session.zone === 'Main section').length;
   const basementCount = activeSessions.filter((session) => session.zone === 'Basement').length;
   const chartPoints = useMemo(() => buildChart(sessions, range), [range, sessions]);

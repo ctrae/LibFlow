@@ -1,11 +1,16 @@
-import { Bell, Highlighter, LibraryBig, NotebookPen } from 'lucide-react';
+import { Bell, Highlighter, LogOut, NotebookPen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export function Header() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const router = useRouter();
+  const { profile, signOut } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -14,14 +19,24 @@ export function Header() {
     return () => clearInterval(interval);
   }, []);
 
+  async function handleSignOut() {
+    try {
+      await signOut();
+      router.replace('/login');
+    } catch (error) {
+      toast({
+        title: 'Unable to sign out',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }
+
   return (
     <header className="glass-card border-b border-border/50 px-6 py-4 sticky top-0 z-50">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-primary/10">
-              <LibraryBig className="h-6 w-6 text-primary" />
-            </div>
             <div>
               <h1 className="text-xl font-bold text-foreground">
                 Lib<span className="text-primary">Flow</span>
@@ -51,6 +66,10 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-2">
+            <span className="hidden text-sm text-muted-foreground md:inline">{profile?.full_name || profile?.email}</span>
+            <Button variant="ghost" size="icon" aria-label="Sign out" onClick={handleSignOut}>
+              <LogOut className="h-5 w-5 text-muted-foreground" />
+            </Button>
             <Button variant="ghost" size="icon" className="relative" aria-label="Notifications" onClick={() => router.push('/live-sessions')}>
               <Bell className="h-5 w-5 text-muted-foreground" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />

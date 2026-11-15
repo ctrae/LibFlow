@@ -6,9 +6,10 @@ import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from 'next-themes';
+import { AuthProvider } from '@/hooks/useAuth';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
-  return <QueryClientProvider client={queryClient}><ThemeProvider attribute="class" defaultTheme="system" enableSystem><TooltipProvider>{children}<Toaster /><Sonner /></TooltipProvider></ThemeProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><ThemeProvider attribute="class" defaultTheme="system" enableSystem><AuthProvider><TooltipProvider>{children}<Toaster /><Sonner /></TooltipProvider></AuthProvider></ThemeProvider></QueryClientProvider>;
 }

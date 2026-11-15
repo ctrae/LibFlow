@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { LibraryBig } from 'lucide-react';
 import { gsap } from 'gsap';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export function Lander() {
   const [isVisible, setIsVisible] = useState(true);
@@ -26,7 +26,7 @@ export function Lander() {
   return (
     <div className="lander-panel fixed inset-0 z-[100] flex items-center justify-center bg-[#3d281f] text-[#fffaf2]">
       <div className="lander-copy px-6 text-center">
-        <div className="mb-8 flex items-center justify-center gap-3 text-[#e2bcae]"><LibraryBig className="h-7 w-7" /><span className="font-mono text-xs uppercase tracking-[0.3em]">Libflow / FST Library</span></div>
+        <div className="mb-8 flex flex-col items-center gap-3 text-[#e2bcae]"><BrandLogo size={160} className="rounded-2xl" /><span className="font-mono text-xs uppercase tracking-[0.3em]">FST Library</span></div>
         <div className="overflow-hidden"><p className="lander-word font-display text-5xl font-bold md:text-7xl">Keep</p></div>
         <div className="overflow-hidden"><p className="lander-word font-display text-5xl font-bold md:text-7xl">Track</p></div>
         <div className="overflow-hidden"><p className="lander-word font-display text-5xl font-bold md:text-7xl text-[#df806c]">Always</p></div>

@@ -85,14 +85,13 @@ The frontend expects two tables:
 - `public.library_sessions`
 - `public.library_session_events`
 
-Run this migration in the Supabase Dashboard:
+Run the first two migrations in the Supabase Dashboard:
 
 1. Open the Supabase project connected to `NEXT_PUBLIC_SUPABASE_URL`.
 2. Go to **SQL Editor**.
 3. Create a new query.
-4. Copy the contents of [supabase/migrations/202609200001_library_tracking.sql](supabase/migrations/202609200001_library_tracking.sql).
-5. Run the query.
-6. Refresh the frontend.
+4. Run `202609200001_library_tracking.sql` and `202611140001_library_tracking_frontend_schema.sql` in timestamp order.
+5. Refresh the frontend.
 
 If the migration has not been applied, the application displays an error similar to:
 
@@ -100,7 +99,7 @@ If the migration has not been applied, the application displays an error similar
 The library tables are not installed in Supabase yet.
 ```
 
-The migration creates:
+The migrations create and align:
 
 - UUID-backed library sessions
 - Unique four-character access codes
@@ -110,9 +109,22 @@ The migration creates:
 - Indexes for access-code, time, status, and zone queries
 - Initial pilot Row Level Security policies
 
+If you already ran only `202609200001_library_tracking.sql`, also run
+`202611140001_library_tracking_frontend_schema.sql`. The original SQL creates
+the initial tables; the follow-up migration adds the columns and event table
+expected by the current frontend without deleting existing session data.
+
+After those migrations, confirm that `libflowadmin@gmail.com` exists in the
+project's Supabase Auth users, then run
+`202611150001_user_registration_and_staff_approval.sql` in the SQL Editor. The
+migration promotes that account to Head Librarian, links student visits to
+`public.users`, creates pending staff profiles after staff signup, and limits
+staff data access to approved accounts. It reports a clear error if that Auth
+account does not exist.
+
 ### Pilot Security Warning
 
-The initial migration permits anonymous insert, read, update, and event logging so the QR workflow can operate without authentication. This is suitable only for early testing. Before production, replace these policies with controlled access using Supabase Auth, server-side routes, or trusted Edge Functions. In particular, anonymous users must not be allowed to update arbitrary student sessions.
+The first migration contains permissive pilot policies for compatibility. Apply the latest user/approval migration to replace them with approved-staff policies and narrowly scoped student registration/status RPCs.
 
 ## Run the Frontend
 
@@ -126,6 +138,9 @@ Open:
 - http://localhost:3000/ for the staff overview
 - http://localhost:3000/student for student registration
 - http://localhost:3000/overrides for staff status changes
+- http://localhost:3000/login for staff sign-in
+- http://localhost:3000/signup to request a staff account
+- http://localhost:3000/admin/users for Head Librarian approvals
 
 If environment variables are changed while Next.js is running, restart the dev server so the new values are bundled into the browser client.
 
@@ -190,6 +205,10 @@ This is the append-only movement log. Each registration or admin status change c
 
 A student can register multiple visits in one day. Each visit is a separate row linked to its own UUID, while the student's institutional ID can be used to group their historical records.
 
+### `users` and staff approval
+
+Student registrations create or update a `Student` row in `public.users` and link each visit through `library_sessions.user_id`. Staff signup creates a `LibraryStaff` Auth account and a matching pending user row; successful staff sign-ins update `last_login_at`. Only the bootstrapped Head Librarian can approve staff accounts at `/admin/users`; staff tools and session updates require an approved account.
+
 ## Typical Workflow
 
 ### Student
@@ -206,15 +225,15 @@ A student can register multiple visits in one day. Each visit is a separate row 
 1. Open `/overrides`.
 2. Find the student by name, ID suffix, or access code.
 3. Set the student's zone to Main section or Basement.
-4. Set the state to Inside, Exited, Waiting, or Expired.
+4. Set the state to Active, Exited, or Expired.
 5. Use `/bags` to verify and close held baggage claims.
 6. Use `/analytics` to review traffic by time range.
 
 ## Expiry Behavior
 
-The frontend derives an expired state when `expires_at` is in the past and the session has not been exited. This means alerts can appear without a background worker. The override page refreshes its session list every 30 seconds, and the student countdown refreshes on the same interval.
+The frontend derives an expired state when `expires_at` is in the past and the session has not been exited. This means alerts can appear without a background staff. The override page refreshes its session list every 30 seconds, and the student countdown refreshes on the same interval.
 
-For production, add a scheduled Supabase job, Edge Function, or server worker if expired status must be persisted in the database rather than derived at read time.
+For production, add a scheduled Supabase job, Edge Function, or server staff if expired status must be persisted in the database rather than derived at read time.
 
 ## Project Structure
 
@@ -223,7 +242,9 @@ Libflow/
 ├── README.md
 ├── supabase/
 │   └── migrations/
-│       └── 202609200001_library_tracking.sql
+│       ├── 202609200001_library_tracking.sql
+│       ├── 202611140001_library_tracking_frontend_schema.sql
+│       └── 202611150001_user_registration_and_staff_approval.sql
 └── src/
     ├── frontend/
     │   ├── src/app/
@@ -258,7 +279,7 @@ Libflow/
 
 ### `library_sessions` does not exist
 
-Run the migration in the Supabase SQL Editor. A frontend build cannot create database tables automatically.
+Run all SQL files in `supabase/migrations/` in timestamp order in the Supabase SQL Editor. A frontend build cannot create database tables automatically. If only the original migration was run, apply the follow-up schema migration as well.
 
 ### Student registration does not appear for staff
 
