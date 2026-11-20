@@ -6996,13 +6996,13 @@ class RealtimeClient {
         return this.socketAdapter.heartbeatIntervalMs;
     }
     get heartbeatTimer() {
-        if (this.staff) {
+        if (this.worker) {
             return this._workerHeartbeatTimer;
         }
         return this.socketAdapter.heartbeatTimer;
     }
     get pendingHeartbeatRef() {
-        if (this.staff) {
+        if (this.worker) {
             return this._pendingWorkerHeartbeatRef;
         }
         return this.socketAdapter.pendingHeartbeatRef;
@@ -7043,8 +7043,8 @@ class RealtimeClient {
      * @param options.encode The function to encode outgoing messages. Defaults to JSON: (payload, callback) => callback(JSON.stringify(payload))
      * @param options.decode The function to decode incoming messages. Defaults to Serializer's decode.
      * @param options.reconnectAfterMs he optional function that returns the millsec reconnect interval. Defaults to stepped backoff off.
-     * @param options.staff Use Web Staff to set a side flow. Defaults to false.
-     * @param options.workerUrl The URL of the staff script. Defaults to https://realtime.supabase.com/staff.js that includes a heartbeat event call to keep the connection alive.
+     * @param options.worker Use Web Worker to set a side flow. Defaults to false.
+     * @param options.workerUrl The URL of the worker script. Defaults to https://realtime.supabase.com/worker.js that includes a heartbeat event call to keep the connection alive.
      * @param options.vsn The protocol version to use when connecting. Supported versions are "1.0.0" and "2.0.0". Defaults to "2.0.0".
      *
      * @category Realtime
@@ -7434,12 +7434,12 @@ class RealtimeClient {
             authPromise.catch((e)=>{
                 this.log('error', 'error waiting for auth on connect', e);
             });
-            if (this.staff && !this.workerRef) {
+            if (this.worker && !this.workerRef) {
                 this._startWorkerHeartbeat();
             }
         });
         this.socketAdapter.onClose(()=>{
-            if (this.staff && this.workerRef) {
+            if (this.worker && this.workerRef) {
                 this._terminateWorker();
             }
         });
@@ -7464,14 +7464,14 @@ class RealtimeClient {
     }
     /** @internal */ _startWorkerHeartbeat() {
         if (this.workerUrl) {
-            this.log('staff', `starting staff for from ${this.workerUrl}`);
+            this.log('worker', `starting worker for from ${this.workerUrl}`);
         } else {
-            this.log('staff', `starting default staff`);
+            this.log('worker', `starting default worker`);
         }
         const objectUrl = this._workerObjectUrl(this.workerUrl);
-        this.workerRef = new Staff(objectUrl);
+        this.workerRef = new Worker(objectUrl);
         this.workerRef.onerror = (error)=>{
-            this.log('staff', 'staff error', error.message);
+            this.log('worker', 'worker error', error.message);
             this._terminateWorker();
             this.disconnect();
         };
@@ -7486,11 +7486,11 @@ class RealtimeClient {
         });
     }
     /**
-     * Terminate the Web Staff and clear the reference
+     * Terminate the Web Worker and clear the reference
      * @internal
      */ _terminateWorker() {
         if (this.workerRef) {
-            this.log('staff', 'terminating staff');
+            this.log('worker', 'terminating worker');
             this.workerRef.terminate();
             this.workerRef = undefined;
         }
@@ -7514,7 +7514,7 @@ class RealtimeClient {
      * @internal
      */ _initializeOptions(options) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
-        this.staff = (_a = options === null || options === void 0 ? void 0 : options.staff) !== null && _a !== void 0 ? _a : false;
+        this.worker = (_a = options === null || options === void 0 ? void 0 : options.worker) !== null && _a !== void 0 ? _a : false;
         this.accessToken = (_b = options === null || options === void 0 ? void 0 : options.accessToken) !== null && _b !== void 0 ? _b : null;
         const result = {};
         result.timeout = (_c = options === null || options === void 0 ? void 0 : options.timeout) !== null && _c !== void 0 ? _c : __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f40$supabase$2f$realtime$2d$js$2f$dist$2f$module$2f$lib$2f$constants$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["DEFAULT_TIMEOUT"];
@@ -7558,13 +7558,13 @@ class RealtimeClient {
                 log_level: this.logLevel
             });
         }
-        // Handle staff setup
-        if (this.staff) {
-            if (typeof window !== 'undefined' && !window.Staff) {
-                throw new Error('Web Staff is not supported');
+        // Handle worker setup
+        if (this.worker) {
+            if (typeof window !== 'undefined' && !window.Worker) {
+                throw new Error('Web Worker is not supported');
             }
             this.workerUrl = options === null || options === void 0 ? void 0 : options.workerUrl;
-            result.autoSendHeartbeat = !this.staff;
+            result.autoSendHeartbeat = !this.worker;
         }
         return result;
     }

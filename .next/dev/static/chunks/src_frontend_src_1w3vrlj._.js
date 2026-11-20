@@ -23,7 +23,13 @@ function AuthGate({ children, requireAdmin = false }) {
     _s();
     const { user, profile, profileError, isLoading, signOut } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$hooks$2f$useAuth$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useAuth"])();
     const router = (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"])();
+    const [isMounted, setIsMounted] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [signOutError, setSignOutError] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])('');
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
+        "AuthGate.useEffect": ()=>{
+            setIsMounted(true);
+        }
+    }["AuthGate.useEffect"], []);
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "AuthGate.useEffect": ()=>{
             if (!isLoading && !user) router.replace('/login');
@@ -33,20 +39,20 @@ function AuthGate({ children, requireAdmin = false }) {
         router,
         user
     ]);
-    if (isLoading || !user) {
+    if (!isMounted || isLoading || !user) {
         return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
             className: "flex min-h-screen items-center justify-center bg-background",
             children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__["Loader2"], {
                 className: "h-8 w-8 animate-spin text-primary"
             }, void 0, false, {
                 fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-                lineNumber: 18,
-                columnNumber: 89
+                lineNumber: 25,
+                columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-            lineNumber: 18,
-            columnNumber: 12
+            lineNumber: 24,
+            columnNumber: 7
         }, this);
     }
     if (profileError || !profile) {
@@ -58,7 +64,7 @@ function AuthGate({ children, requireAdmin = false }) {
             setError: setSignOutError
         }, void 0, false, {
             fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-            lineNumber: 22,
+            lineNumber: 31,
             columnNumber: 12
         }, this);
     }
@@ -71,7 +77,7 @@ function AuthGate({ children, requireAdmin = false }) {
             setError: setSignOutError
         }, void 0, false, {
             fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-            lineNumber: 32,
+            lineNumber: 41,
             columnNumber: 12
         }, this);
     }
@@ -84,7 +90,7 @@ function AuthGate({ children, requireAdmin = false }) {
             setError: setSignOutError
         }, void 0, false, {
             fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-            lineNumber: 42,
+            lineNumber: 51,
             columnNumber: 12
         }, this);
     }
@@ -97,7 +103,7 @@ function AuthGate({ children, requireAdmin = false }) {
             setError: setSignOutError
         }, void 0, false, {
             fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-            lineNumber: 52,
+            lineNumber: 61,
             columnNumber: 12
         }, this);
     }
@@ -105,11 +111,11 @@ function AuthGate({ children, requireAdmin = false }) {
         children: children
     }, void 0, false, {
         fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-        lineNumber: 61,
+        lineNumber: 70,
         columnNumber: 10
     }, this);
 }
-_s(AuthGate, "6fV3LwBr1aOkrtCCZWkIGsbn5yw=", false, function() {
+_s(AuthGate, "xFKunnilhdHR3oRUHkd3yN8hUIA=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$hooks$2f$useAuth$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useAuth"],
         __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"]
@@ -134,7 +140,7 @@ function AccessMessage({ title, description, onSignOut, error, setError }) {
                     children: title
                 }, void 0, false, {
                     fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-                    lineNumber: 88,
+                    lineNumber: 97,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -142,7 +148,7 @@ function AccessMessage({ title, description, onSignOut, error, setError }) {
                     children: description
                 }, void 0, false, {
                     fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-                    lineNumber: 89,
+                    lineNumber: 98,
                     columnNumber: 9
                 }, this),
                 error && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -151,7 +157,7 @@ function AccessMessage({ title, description, onSignOut, error, setError }) {
                     children: error
                 }, void 0, false, {
                     fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-                    lineNumber: 90,
+                    lineNumber: 99,
                     columnNumber: 19
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -163,25 +169,25 @@ function AccessMessage({ title, description, onSignOut, error, setError }) {
                             className: "h-4 w-4"
                         }, void 0, false, {
                             fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-                            lineNumber: 92,
+                            lineNumber: 101,
                             columnNumber: 11
                         }, this),
                         " Sign out"
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-                    lineNumber: 91,
+                    lineNumber: 100,
                     columnNumber: 9
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-            lineNumber: 87,
+            lineNumber: 96,
             columnNumber: 7
         }, this)
     }, void 0, false, {
         fileName: "[project]/src/frontend/src/components/AuthGate.tsx",
-        lineNumber: 86,
+        lineNumber: 95,
         columnNumber: 5
     }, this);
 }

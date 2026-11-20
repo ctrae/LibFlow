@@ -68,12 +68,12 @@ export default function Signup() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="fixed top-4 left-4 z-50">
+        <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-secondary-foreground">LibFlow</p>
+      </div>
       <div className="w-full max-w-md">
         <div className="glass-card space-y-6 rounded-2xl p-8">
           <div className="space-y-2 text-center">
-            <div className="mb-4 flex justify-center">
-              <BrandLogo size={112} className="rounded-2xl" />
-            </div>
             <h1 className="text-2xl font-bold text-foreground">Request staff access</h1>
             <p className="text-muted-foreground">Staff accounts remain pending until approved by the Head Librarian.</p>
           </div>
@@ -92,13 +92,16 @@ export default function Signup() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
-              <Input id="department" value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} required className="h-11" />
+              <select id="department" value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="Security">Security</option>
+                <option value="Bag Staff">Bag Staff</option>
+              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="assigned-zone">Assigned zone</Label>
               <select id="assigned-zone" value={form.assignedZone} onChange={(event) => setForm({ ...form, assignedZone: event.target.value })} className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="Security">Security</option>
-                <option value="Bag Staff">Bag Staff</option>
+                <option value="Main Section">Main Section</option>
+                <option value="Basement">Basement</option>
               </select>
             </div>
             <div className="space-y-2">

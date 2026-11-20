@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&family=Source+Code+Pro:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hepta+Slab:wght@1..900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -116,23 +116,23 @@
   }
 
   .dark {
-    --background: 24 21% 12%;
-    --foreground: 38 45% 96%;
+    --background: 24 18% 9%;
+    --foreground: 30 20% 82%;
 
-    --card: 24 20% 16%;
-    --card-foreground: 38 45% 96%;
+    --card: 24 18% 13%;
+    --card-foreground: 30 20% 82%;
 
-    --popover: 24 20% 16%;
-    --popover-foreground: 38 45% 96%;
+    --popover: 24 18% 13%;
+    --popover-foreground: 30 20% 82%;
 
     --primary: 8 62% 54%;
     --primary-foreground: 38 45% 98%;
 
-    --secondary: 25 18% 24%;
-    --secondary-foreground: 38 45% 96%;
+    --secondary: 25 18% 19%;
+    --secondary-foreground: 30 20% 82%;
 
-    --muted: 25 18% 24%;
-    --muted-foreground: 32 16% 70%;
+    --muted: 25 18% 18%;
+    --muted-foreground: 30 14% 58%;
 
     --accent: 8 35% 22%;
     --accent-foreground: 8 62% 75%;
@@ -149,8 +149,8 @@
     --energy: 262 83% 50%;
     --energy-foreground: 210 40% 98%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
+    --border: 25 18% 24%;
+    --input: 25 18% 26%;
     --ring: 8 62% 54%;
 
     --sidebar-background: 240 5.9% 10%;
@@ -166,6 +166,13 @@
   }
 }
 
+.hepta-slab-font {
+  font-family: "Hepta Slab", serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -173,11 +180,11 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Hepta Slab', sans-serif;
   }
 
   .font-mono {
-    font-family: 'Source Code Pro', monospace;
+    font-family: 'Hepta Slab', monospace;
   }
 }
 
@@ -211,55 +218,184 @@
     @apply absolute inset-0 rounded-full animate-ping opacity-75;
     background: inherit;
   }
+}
 
-  .gradient-text {
-    @apply bg-clip-text text-transparent;
-    background-image: var(--gradient-primary);
-  }
+html[data-high-contrast="true"] {
+  --muted-foreground: 22 31% 18%;
+  --border: 22 31% 42%;
+  --input: 22 31% 42%;
+}
 
-  .font-display {
-    font-family: 'Libre Baskerville', Georgia, serif;
-  }
+html.dark[data-high-contrast="true"] {
+  --muted-foreground: 38 45% 92%;
+  --border: 38 35% 58%;
+  --input: 38 35% 58%;
+}
 
-  .library-page .bg-white {
-    background-color: #fffaf2;
-  }
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
 
-  .library-page .bg-slate-950 {
-    background-color: #3d281f;
-  }
+html.dark body,
+html.dark .library-page {
+  background-color: #191512 !important;
+}
 
-  .library-page .bg-slate-900 {
-    background-color: #2d1d18;
-  }
+html.dark .glass-card {
+  background-color: rgba(29, 23, 19, 0.98);
+  border-color: #382c24;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+}
 
-  .library-page .bg-slate-100 {
-    background-color: #eee2d2;
-  }
+html.dark [class~="bg-[#fffaf2]"],
+html.dark [class~="bg-[#fffdf8]"],
+html.dark [class~="bg-white"],
+html.dark [class~="bg-white/70"],
+html.dark [class~="bg-white/50"] {
+  background-color: #241d18 !important;
+}
 
-  .library-page .text-slate-950,
-  .library-page .text-slate-900 {
-    color: #3d281f;
-  }
+html.dark [class~="bg-[#f3eadb]"] {
+  background-color: #191512 !important;
+}
 
-  .library-page .text-slate-700,
-  .library-page .text-slate-600,
-  .library-page .text-slate-500 {
-    color: #765d4c;
-  }
+html.dark [class~="bg-[#ead8c1]"],
+html.dark [class~="bg-[#ead8c1]/70"] {
+  background-color: #342820 !important;
+}
 
-  .library-page .text-slate-400 {
-    color: #9b806d;
-  }
+html.dark [class~="text-[#3d281f]"],
+html.dark [class~="text-[#4a3025]"],
+html.dark [class~="text-[#5b4438]"] {
+  color: #ddc9b5 !important;
+}
 
-  .library-page .border-slate-200,
-  .library-page .border-slate-100 {
-    border-color: #decfbc;
-  }
+html.dark [class~="text-[#765d4c]"],
+html.dark [class~="text-[#5b2924]"] {
+  color: #bfa78f !important;
+}
 
-  .library-page .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
-    border-color: #eee2d2;
-  }
+html.dark [class~="text-[#9b806d]"] {
+  color: #9e846d !important;
+}
+
+html.dark [class~="border-[#decfbc]"],
+html.dark [class~="border-[#d8c8b2]"],
+html.dark [class~="border-[#eee2d2]"] {
+  border-color: #403229 !important;
+}
+
+html.dark [class~="bg-[#f9e9e4]"] {
+  background-color: #38221e !important;
+}
+
+html.dark [class~="bg-[#f4dfc2]"],
+html.dark [class~="bg-[#eadfd3]"] {
+  background-color: #34271e !important;
+}
+
+html.dark .library-page .bg-slate-950 {
+  background-color: #191512 !important;
+}
+
+html.dark .library-page .bg-slate-900 {
+  background-color: #211a16 !important;
+}
+
+html.dark .library-page .bg-slate-100 {
+  background-color: #302720 !important;
+}
+
+html.dark .library-page .text-slate-950,
+html.dark .library-page .text-slate-900 {
+  color: #ddc9b5 !important;
+}
+
+html.dark .library-page .text-slate-700,
+html.dark .library-page .text-slate-600,
+html.dark .library-page .text-slate-500,
+html.dark .library-page .text-slate-400 {
+  color: #bfa78f !important;
+}
+
+html.dark .staff-guide {
+  background-color: #ded2c3 !important;
+}
+
+html.dark .staff-guide-summary,
+html.dark .staff-guide ol {
+  color: #000 !important;
+}
+
+html.dark [class~="bg-emerald-50"],
+html.dark [class~="bg-emerald-50/80"] {
+  background-color: #173a2b !important;
+}
+
+html.dark [class~="text-emerald-800"],
+html.dark [class~="text-emerald-900"],
+html.dark [class~="text-emerald-700"] {
+  color: #a7e4c4 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  color-scheme: dark;
+}
+
+.gradient-text {
+  @apply bg-clip-text text-transparent;
+  background-image: var(--gradient-primary);
+}
+
+.font-display {
+  font-family: 'Hepta Slab', sans-serif;
+}
+
+.library-page .bg-white {
+  background-color: #fffaf2;
+}
+
+.library-page .bg-slate-950 {
+  background-color: #3d281f;
+}
+
+.library-page .bg-slate-900 {
+  background-color: #2d1d18;
+}
+
+.library-page .bg-slate-100 {
+  background-color: #eee2d2;
+}
+
+.library-page .text-slate-950,
+.library-page .text-slate-900 {
+  color: #3d281f;
+}
+
+.library-page .text-slate-700,
+.library-page .text-slate-600,
+.library-page .text-slate-500 {
+  color: #765d4c;
+}
+
+.library-page .text-slate-400 {
+  color: #9b806d;
+}
+
+.library-page .border-slate-200,
+.library-page .border-slate-100 {
+  border-color: #decfbc;
+}
+
+.library-page .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #eee2d2;
 }
 
 @layer utilities {

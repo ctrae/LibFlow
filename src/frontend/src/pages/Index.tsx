@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, ArrowUpRight, BookOpenText, Bookmark, CircleHelp, LibraryBig, LogOut, NotebookPen, ScanLine, ShieldCheck } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Lander } from '@/components/Lander';
+import { StaffSidebar } from '@/components/StaffSidebar';
 import { getAdminSessions, LibrarySession } from '@/lib/libraryApi';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -21,6 +22,7 @@ type ScanEvent = {
   status: 'Verified' | 'Bag held' | 'Needs review';
 };
 
+/*
 const navItems = [
   { label: 'Overview', path: '/' },
   { label: 'Live sessions', path: '/live-sessions' },
@@ -28,11 +30,13 @@ const navItems = [
   { label: 'Analytics', path: '/analytics' },
   { label: 'Overrides', path: '/overrides' },
 ];
+*/
 
 export default function Index() {
   const [sessions, setSessions] = useState<LibrarySession[]>([]);
   const [activeFilter, setActiveFilter] = useState<'All activity' | ScanType>('All activity');
   const [dataError, setDataError] = useState('');
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const router = useRouter();
   const { profile } = useAuth();
   const displayName = profile?.full_name || 'Staff member';
@@ -53,6 +57,7 @@ export default function Index() {
   ];
 
   useEffect(() => {
+    setCurrentDate(new Date());
     getAdminSessions().then((sessions) => {
       setSessions(sessions);
     }).catch((error: unknown) => {
@@ -63,25 +68,43 @@ export default function Index() {
   const events = useMemo(() => sessions.map(toScanEvent), [sessions]);
   const filteredEvents = useMemo(() => activeFilter === 'All activity' ? events : events.filter((event) => event.type === activeFilter), [activeFilter, events]);
   const metrics = [
-    ['Active sessions', activeSessions.length, 'Currently active', 'from-[#ead8c1] to-[#f9f1e5]', LibraryBig],
-    ['Main section', mainOccupancy, 'Active sessions', 'from-[#e8d8cf] to-[#fbf5f0]', BookOpenText],
-    ['Basement', basementOccupancy, 'Active sessions', 'from-[#f4dfc2] to-[#fff8ea]', NotebookPen],
-    ['Visits today', visitsToday, 'Registered today', 'from-[#eadfd3] to-[#fcf7f0]', Bookmark],
+    ['Active sessions', activeSessions.length, 'Currently active', 'from-[#ead8c1] to-[#f9f1e5]', 'dark:from-[#d8c6b0] dark:to-[#bda68e]', LibraryBig],
+    ['Main section', mainOccupancy, 'Active sessions', 'from-[#e8d8cf] to-[#fbf5f0]', 'dark:from-[#dfcbc2] dark:to-[#c5aa99]', BookOpenText],
+    ['Basement', basementOccupancy, 'Active sessions', 'from-[#f4dfc2] to-[#fff8ea]', 'dark:from-[#ded2b9] dark:to-[#c5ad87]', NotebookPen],
+    ['Visits today', visitsToday, 'Registered today', 'from-[#eadfd3] to-[#fcf7f0]', 'dark:from-[#d8c8b7] dark:to-[#bca58e]', Bookmark],
   ] as const;
 
   return (
     <div className="library-page min-h-screen bg-[#f3eadb]">
       <Lander />
       <Header />
-      <main className="mx-auto max-w-[1500px] px-5 py-7 lg:px-10">
+      <StaffSidebar />
+      <main className="mx-auto max-w-[1500px] px-5 py-7 lg:ml-64 lg:px-10">
         <div className="mb-8 flex flex-col gap-6 border-b border-[#d8c8b2] pb-6 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p><h2 className="font-display text-3xl font-semibold tracking-tight text-[#3d281f] md:text-4xl">Welcome, {firstName}.</h2><p className="mt-2 text-sm text-[#765d4c]">Live library activity from registered visits.</p></div>
-          <div className="flex gap-2 overflow-x-auto pb-1">{(profile?.user_type === 'HeadLibrarian' ? [...navItems, { label: 'Staff approvals', path: '/admin/users' }] : navItems).map((item) => <button key={item.label} type="button" onClick={() => router.push(item.path)} className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition ${item.label === 'Overview' ? 'border-primary text-[#3d281f]' : 'border-transparent text-[#765d4c] hover:text-[#3d281f]'}`}>{item.label}</button>)}</div>
+          <div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary">{currentDate ? currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Loading date'}</p><h2 className="font-display text-3xl font-semibold tracking-tight text-[#3d281f] md:text-4xl">Welcome, {firstName}.</h2><p className="mt-2 text-sm text-[#765d4c]">Live library activity from registered visits.</p></div>
         </div>
 
         {dataError && <p role="alert" className="mb-5 rounded-lg bg-[#f9e9e4] p-3 text-sm text-[#9a4638]">{dataError}</p>}
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {metrics.map(([label, value, detail, color, Icon]) => <div key={label} className={`rounded-2xl border border-[#eadbc9] bg-gradient-to-br ${color} p-5 shadow-sm`}><div className="flex items-start justify-between"><p className="text-sm font-medium text-[#765d4c]">{label}</p><Icon className="h-5 w-5 text-[#9a4638]" /></div><p className="mt-5 text-3xl font-semibold tracking-tight text-[#3d281f]">{value}</p><p className="mt-1 text-xs font-medium text-[#765d4c]">{detail}</p></div>)}
+          {metrics.map(([label, value, detail, color, darkColor, Icon]) => (
+            <div
+              key={label}
+              className={`rounded-2xl border border-[#eadbc9] bg-gradient-to-br ${color} ${darkColor} p-5 shadow-sm dark:border-[#aa927a]`}
+            >
+              <div className="flex items-start justify-between">
+                <p className="text-sm font-medium text-muted-foreground dark:!text-black">
+                  {label}
+                </p>
+                <Icon className="h-5 w-5 text-[#9a4638]" />
+              </div>
+              <p className="mt-5 text-3xl font-semibold tracking-tight text-card-foreground dark:!text-black">
+                {value}
+              </p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground dark:!text-black">
+                {detail}
+              </p>
+            </div>
+          ))}
         </section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[1.55fr_0.85fr]">

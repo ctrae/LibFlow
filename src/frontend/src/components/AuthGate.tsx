@@ -8,14 +8,23 @@ import { useAuth } from '@/hooks/useAuth';
 export function AuthGate({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
   const { user, profile, profileError, isLoading, signOut } = useAuth();
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
   const [signOutError, setSignOutError] = useState('');
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace('/login');
   }, [isLoading, router, user]);
 
-  if (isLoading || !user) {
-    return <div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (!isMounted || isLoading || !user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (profileError || !profile) {
@@ -48,7 +57,7 @@ export function AuthGate({ children, requireAdmin = false }: { children: React.R
     />;
   }
 
-  if (requireAdmin && profile.user_type !== 'HeadLibrarian') {
+  if (requireAdmin && profile.user_type !== 'Head Librarian') {
     return <AccessMessage
       title="Administrator access required"
       description="Only the Head Librarian can review and approve staff accounts."

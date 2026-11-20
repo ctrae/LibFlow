@@ -16326,7 +16326,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modu
                     case "paintworklet":
                     case "serviceworker":
                     case "sharedworker":
-                    case "staff":
+                    case "worker":
                     case "script":
                         key = getScriptKey(href);
                 }
@@ -16339,7 +16339,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$node_modu
                         case "paintworklet":
                         case "serviceworker":
                         case "sharedworker":
-                        case "staff":
+                        case "worker":
                         case "script":
                             if (ownerDocument.querySelector(getScriptSelectorFromKey(key))) return;
                     }

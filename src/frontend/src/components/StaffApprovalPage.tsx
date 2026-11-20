@@ -5,6 +5,8 @@ import { ArrowLeft, Check, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/AuthGate';
 import { PendingLibraryStaff, approveLibraryStaff, getPendingLibraryStaff } from '@/lib/staffUsersApi';
+import { Header } from '@/components/Header';
+import { StaffSidebar } from '@/components/StaffSidebar';
 
 export function StaffApprovalPage() {
   return <AuthGate requireAdmin><StaffApprovalContent /></AuthGate>;
@@ -50,8 +52,10 @@ function StaffApprovalContent() {
   }
 
   return (
-    <main className="library-page min-h-screen bg-[#f3eadb]">
-      <section className="mx-auto max-w-5xl px-5 py-8 lg:px-10">
+    <div className="library-page min-h-screen bg-[#f3eadb]">
+      <Header />
+      <StaffSidebar />
+      <main className="mx-auto max-w-5xl px-5 py-8 lg:ml-64 lg:px-10">
         <button type="button" onClick={() => router.push('/')} className="mb-7 flex items-center gap-2 text-sm font-semibold text-[#765d4c] hover:text-primary">
           <ArrowLeft className="h-4 w-4" /> Back to overview
         </button>
@@ -94,7 +98,7 @@ function StaffApprovalContent() {
           <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
           Approval grants staff access only; public signups cannot create Head Librarian accounts.
         </div>
-      </section>
-    </main>
+      </main>
+    </div>
   );
 }

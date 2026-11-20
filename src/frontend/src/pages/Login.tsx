@@ -3,13 +3,12 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { BrandLogo } from '@/components/BrandLogo';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -77,13 +76,35 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <div className="glass-card space-y-6 rounded-2xl p-8">
+      <div className="fixed top-4 left-4 z-50">
+        <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-secondary-foreground">LibFlow</p>
+      </div>
+      <div className="grid w-full max-w-5xl gap-6 md:grid-cols-2">
+        <section className="glass-card flex flex-col justify-center space-y-8 rounded-2xl p-8 sm:p-10">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Library operations, made clearer.</h1>
+            <p className="mt-4 leading-relaxed text-muted-foreground">
+              LibFlow functions as a library management software that does event logging and session-based tracking for student entries and exits, bag checks and library analytics. This software will assist in better recordkeeping and library preparedness for the days and corresponding times where there is a high influx of students. 
+            </p>
+          </div>
+
+          <ul className="space-y-4">
+            {[
+              'Monitor current library visits and occupancy.',
+              'Review baggage details and visitor zones.',
+              'Keep track of visit activity and session history.',
+            ].map((feature) => (
+              <li key={feature} className="flex items-start gap-3 text-sm text-foreground">
+                <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="glass-card space-y-6 rounded-2xl p-8 sm:p-10">
           <div className="space-y-2 text-center">
-            <div className="mb-4 flex justify-center">
-              <BrandLogo size={112} className="rounded-2xl" />
-            </div>
-            <h1 className="text-2xl font-bold text-foreground">Staff Sign In</h1>
+            <h2 className="text-2xl font-bold text-foreground">Staff Sign In</h2>
             <p className="text-muted-foreground">Approved library workers can open the staff console.</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -104,7 +125,7 @@ export default function Login() {
             <Link href="/signup" className="font-medium text-primary hover:underline">Request an account</Link>
           </p>
           <p className="text-center text-xs text-muted-foreground"><Link href="/student" className="hover:underline">Student visit registration</Link></p>
-        </div>
+        </section>
       </div>
     </div>
   );

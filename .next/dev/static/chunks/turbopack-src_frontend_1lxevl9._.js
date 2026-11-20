@@ -964,7 +964,7 @@ browserContextPrototype.q = exportUrl;
 // exposed as `__turbopack_chunk_base_path__` and `__turbopack_chunk_asset_suffix__`.
 browserContextPrototype.b = RUNTIME_CHUNK_BASE_PATH;
 browserContextPrototype.X = ASSET_SUFFIX;
-// Shared runtime primitive: build a chunk's URL. Used by the bundled staff
+// Shared runtime primitive: build a chunk's URL. Used by the bundled worker
 // helper and the WASM helper, exposed as `__turbopack_chunk_relative_url__`.
 browserContextPrototype.h = getChunkRelativeUrl;
 function getPathFromScript(chunkScript) {
@@ -997,7 +997,7 @@ function getPathFromScript(chunkScript) {
                 src: TURBOPACK_NEXT_CHUNK_URLS.pop()
             };
         } else {
-            throw new Error('chunk path empty but not in a staff');
+            throw new Error('chunk path empty but not in a worker');
         }
     } else {
         return {
@@ -1461,7 +1461,7 @@ function formatDependencyChain(dependencyChain) {
     const id = moduleId;
     const moduleFactory = moduleFactories.get(id);
     if (typeof moduleFactory !== 'function') {
-        throw new Error(factoryNotAvailableMessage(moduleId, sourceType, sourceData) + `\nThis is often caused by a stale browser cache, misconfigured Cache-Control headers, or a service staff serving outdated responses.` + `\nTo fix this, make sure your Cache-Control headers allow revalidation of chunks and review your service staff configuration. ` + `As an immediate workaround, try hard-reloading the page, clearing the browser cache, or unregistering any service workers.`);
+        throw new Error(factoryNotAvailableMessage(moduleId, sourceType, sourceData) + `\nThis is often caused by a stale browser cache, misconfigured Cache-Control headers, or a service worker serving outdated responses.` + `\nTo fix this, make sure your Cache-Control headers allow revalidation of chunks and review your service worker configuration. ` + `As an immediate workaround, try hard-reloading the page, clearing the browser cache, or unregistering any service workers.`);
     }
     // 2. Hot API setup (same in both - works for browser, included for Node.js)
     const hotData = moduleHotData.get(id);
@@ -1836,7 +1836,7 @@ const DUMMY_REFRESH_CONTEXT = {
         }
     } else {
         // If the react refresh hooks are not installed we need to bind dummy functions.
-        // This is expected when running in a Web Staff.  It is also common in some of
+        // This is expected when running in a Web Worker.  It is also common in some of
         // our test environments.
         executeModule(DUMMY_REFRESH_CONTEXT);
     }
@@ -2285,7 +2285,7 @@ let BACKEND;
             return resolver.promise;
         }
         if (typeof importScripts === 'function') {
-            // We're in a web staff
+            // We're in a web worker
             if (isCss(chunkUrl)) {
             // ignore
             } else if (isJs(chunkUrl)) {
@@ -2296,7 +2296,7 @@ let BACKEND;
                     onChunkLoadError(sourceType, chunkUrl, resolver, error);
                 }
             } else {
-                throw new Error(`can't infer type of chunk from URL ${chunkUrl} in staff`);
+                throw new Error(`can't infer type of chunk from URL ${chunkUrl} in worker`);
             }
         } else {
             // TODO(PACK-2140): remove this once all filenames are guaranteed to be escaped.

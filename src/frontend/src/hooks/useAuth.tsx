@@ -8,7 +8,7 @@ export type LibraryUserProfile = {
   user_id: string;
   auth_user_id: string | null;
   email: string;
-  user_type: 'Student' | 'HeadLibrarian' | 'LibraryStaff';
+  user_type: 'Student' | 'Head Librarian' | 'Library Staff';
   full_name: string | null;
   is_approved: boolean;
 };
