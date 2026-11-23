@@ -7,7 +7,7 @@ alter table public.users
 alter table public.users drop constraint if exists users_email_check;
 alter table public.users
   add constraint users_email_check
-  check (lower(email) like '%@mymona.uwi.edu' or user_type = 'HeadLibrarian');
+  check (lower(email) like '%@mymona.uwi.edu' or user_type = 'Head Librarian');
 
 create unique index if not exists users_auth_user_id_idx
   on public.users (auth_user_id)
@@ -48,7 +48,7 @@ as $$
     select 1
     from public.users
     where auth_user_id = auth.uid()
-      and user_type in ('HeadLibrarian', 'LibraryStaff')
+      and user_type in ('Head Librarian', 'Library Staff')
       and is_approved
   );
 $$;
@@ -64,7 +64,7 @@ as $$
     select 1
     from public.users
     where auth_user_id = auth.uid()
-      and user_type = 'HeadLibrarian'
+      and user_type = 'Head Librarian'
       and is_approved
   );
 $$;
@@ -146,11 +146,11 @@ begin
   )
   values (
     v_admin_id, v_admin_id, v_admin_email,
-    'HeadLibrarian', 'Head Librarian', true
+    'Head Librarian', 'Head Librarian', true
   )
   on conflict (email) do update
   set auth_user_id = excluded.auth_user_id,
-      user_type = 'HeadLibrarian',
+      user_type = 'Head Librarian',
       is_approved = true,
       full_name = coalesce(public.users.full_name, excluded.full_name);
 end;
@@ -366,7 +366,7 @@ begin
   update public.users
   set last_login_at = now()
   where auth_user_id = auth.uid()
-    and user_type in ('HeadLibrarian', 'LibraryStaff');
+    and user_type in ('Head Librarian', 'LibraryStaff');
 
   if not found then
     raise exception 'No staff profile is linked to this account.';

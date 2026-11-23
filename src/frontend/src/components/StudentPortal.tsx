@@ -1,14 +1,15 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { Clock3, Copy, Loader2, LogIn, ShieldCheck } from 'lucide-react';
-import { getStudentStatus, LibrarySession, registerStudent } from '@/lib/libraryApi';
+import { Clock3, Copy, Loader2, LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import { checkoutStudent, getStudentStatus, LibrarySession, LibraryZone, registerStudent, requestSessionExtension } from '@/lib/libraryApi';
 
 const durationOptions = [15, 30, 45, 60];
 
 export function StudentPortal() {
   const [session, setSession] = useState<LibrarySession | null>(null);
   const [code, setCode] = useState('');
+  const [zone, setZone] = useState<LibraryZone | ''>('');
   const [form, setForm] = useState({ name: '', email: '', student_id: '', duration_minutes: 30, baggage_info: 'No bag declared' });
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -22,10 +23,14 @@ export function StudentPortal() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!zone) {
+      setMessage('Choose your current library zone');
+      return;
+    }
     setIsLoading(true);
     setMessage('');
     try {
-      const result = await registerStudent(form);
+      const result = await registerStudent({ ...form, zone });
       setSession(result);
       setCode(result.short_code);
       window.localStorage.setItem('Libflow_student_code', result.short_code);
@@ -40,6 +45,7 @@ export function StudentPortal() {
     return (
       <StudentStatus
         session={session}
+        onSessionChange={setSession}
         onRefresh={() => getStudentStatus(session.short_code).then(setSession)}
       />
     );
@@ -78,6 +84,26 @@ export function StudentPortal() {
           Student ID number
           <input required value={form.student_id} onChange={(event) => setForm({ ...form, student_id: event.target.value })} className="rounded-lg border border-[#d8c8b2] bg-[#fffdf8] px-3 py-3 font-normal outline-none focus:ring-2 focus:ring-primary" placeholder="Nine-digit ID" />
         </label>
+        <label className="grid gap-2 text-sm font-semibold text-[#3d281f]">
+          Current library zone
+          <select
+            required
+            value={zone}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'Main section' || value === 'Basement') {
+                setZone(value);
+              } else {
+                setZone('');
+              }
+            }}
+            className="rounded-lg border border-[#d8c8b2] bg-[#fffdf8] px-3 py-3 font-normal outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="" disabled>Choose your zone</option>
+            <option value="Main section">Main section</option>
+            <option value="Basement">Basement</option>
+          </select>
+        </label>
         <fieldset>
           <legend className="text-sm font-semibold text-[#3d281f]">How long are you staying?</legend>
           <div className="mt-2 grid grid-cols-4 gap-2">
@@ -114,21 +140,69 @@ export function StudentPortal() {
   );
 }
 
-function StudentStatus({ session, onRefresh }: { session: LibrarySession; onRefresh: () => void }) {
+function StudentStatus({
+  session,
+  onSessionChange,
+  onRefresh,
+}: {
+  session: LibrarySession;
+  onSessionChange: (session: LibrarySession) => void;
+  onRefresh: () => void;
+}) {
   const [now, setNow] = useState(Date.now());
+  const [requestedMinutes, setRequestedMinutes] = useState(15);
+  const [isWorking, setIsWorking] = useState(false);
+  const [actionMessage, setActionMessage] = useState('');
+  const [actionError, setActionError] = useState('');
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(interval);
   }, []);
   const remaining = Math.max(0, Math.ceil((new Date(session.expires_at).getTime() - now) / 60000));
+  const displayStatus = session.status === 'exited'
+    ? 'exited'
+    : remaining === 0
+      ? 'expired'
+      : session.status;
   const copyCode = () => navigator.clipboard?.writeText(session.short_code);
+
+  async function handleCheckout() {
+    setIsWorking(true);
+    setActionMessage('');
+    setActionError('');
+    try {
+      const updated = await checkoutStudent(session.short_code);
+      onSessionChange(updated);
+      window.localStorage.removeItem('Libflow_student_code');
+      setActionMessage('You have checked out.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to check out');
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
+  async function handleExtensionRequest() {
+    setIsWorking(true);
+    setActionMessage('');
+    setActionError('');
+    try {
+      const updated = await requestSessionExtension(session.short_code, requestedMinutes);
+      onSessionChange(updated);
+      setActionMessage(`Your request for ${requestedMinutes} additional minutes was sent to library staff.`);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to request additional time');
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-5 py-10">
-      <div className="mb-8 flex items-center gap-3">
-        <p className="font-display text-2xl font-bold text-[#3d281f]">
-          Libflow Student Pass
-        </p>
+      <div className="fixed top-4 left-4 z-50">
+        <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-secondary-foreground">LibFlow</p>
       </div>
+
       <section className="rounded-2xl border border-[#decfbc] bg-[#fffaf2] p-6 shadow-sm md:p-8">
         <p className="text-sm text-[#765d4c]">Welcome, {session.name}</p>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -165,9 +239,9 @@ function StudentStatus({ session, onRefresh }: { session: LibrarySession; onRefr
           <span>
             Status:{' '}
             <strong className="text-[#3d281f]">
-              {session.status}
-              {session.zone ? ` · ${session.zone}` : ''}
+              {displayStatus}
             </strong>
+            <span> · Current zone: <strong className="text-[#3d281f]">{session.zone || 'Not assigned'}</strong></span>
           </span>
           <button
             type="button"
@@ -178,6 +252,55 @@ function StudentStatus({ session, onRefresh }: { session: LibrarySession; onRefr
           </button>
         </div>
       </section>
+      {session.status !== 'exited' && (
+        <section className="mt-4 rounded-2xl border border-[#decfbc] bg-[#fffaf2] p-5 shadow-sm">
+          <div className="grid gap-4">
+            <label className="grid gap-2 text-sm font-semibold text-[#3d281f]">
+              Additional minutes requested
+              <input
+                type="number"
+                min={1}
+                max={60}
+                step={1}
+                value={requestedMinutes}
+                onChange={(event) => setRequestedMinutes(Number(event.target.value))}
+                disabled={isWorking || session.extension_request_status === 'pending'}
+                className="w-full rounded-lg border border-[#d8c8b2] bg-[#fffdf8] px-3 py-2 font-normal outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleCheckout}
+                disabled={isWorking}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#d8c8b2] px-4 py-3 font-semibold text-[#765d4c] hover:bg-[#ead8c1] disabled:opacity-60"
+              >
+                {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                Check out
+              </button>
+              <button
+                type="button"
+                onClick={handleExtensionRequest}
+                disabled={isWorking || session.extension_request_status === 'pending' || !Number.isInteger(requestedMinutes) || requestedMinutes < 1 || requestedMinutes > 60}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+              >
+                {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
+                {session.extension_request_status === 'pending' ? 'Request pending' : 'Request override'}
+              </button>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-[#765d4c]">
+            Requests for 1–60 additional minutes require staff approval and can be made after your time expires.
+          </p>
+          {session.extension_request_status && (
+            <p className="mt-3 text-sm font-medium text-[#765d4c]">
+              Latest request: {session.extension_requested_minutes} additional minutes — {session.extension_request_status}.
+            </p>
+          )}
+          {actionMessage && <p className="mt-3 text-sm font-medium text-emerald-700">{actionMessage}</p>}
+          {actionError && <p className="mt-3 rounded-lg bg-[#f9e9e4] p-3 text-sm text-[#9a4638]">{actionError}</p>}
+        </section>
+      )}
     </main>
   );
 }

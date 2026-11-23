@@ -2290,17 +2290,25 @@ if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelper
 "use strict";
 
 __turbopack_context__.s([
+    "checkoutStudent",
+    ()=>checkoutStudent,
     "getAdminSessions",
     ()=>getAdminSessions,
     "getStudentStatus",
     ()=>getStudentStatus,
     "registerStudent",
     ()=>registerStudent,
+    "requestSessionExtension",
+    ()=>requestSessionExtension,
+    "resolveSessionExtension",
+    ()=>resolveSessionExtension,
     "updateAdminStatus",
     ()=>updateAdminStatus
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$integrations$2f$supabase$2f$client$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/frontend/src/integrations/supabase/client.ts [app-client] (ecmascript)");
 ;
+const studentZoneMigrationMessage = 'Zone registration is not installed in Supabase. Apply supabase/migrations/202611210001_student_registration_zone.sql.';
+const studentActionsMigrationMessage = 'Supabase cannot find the student action functions. Apply supabase/migrations/202611200001_student_session_actions.sql; if it is already applied, reload the Supabase API schema cache.';
 async function registerStudent(payload) {
     const normalizedEmail = payload.email.trim().toLowerCase();
     if (!normalizedEmail.endsWith('@mymona.uwi.edu')) throw new Error('Use your @mymona.uwi.edu email address');
@@ -2310,6 +2318,7 @@ async function registerStudent(payload) {
         45,
         60
     ].includes(payload.duration_minutes)) throw new Error('Choose a stay between 15 and 60 minutes');
+    if (payload.zone !== 'Main section' && payload.zone !== 'Basement') throw new Error('Choose a valid library zone');
     const studentId = Number(payload.student_id.trim());
     if (!Number.isSafeInteger(studentId) || studentId < 0) throw new Error('Enter a valid student ID number');
     const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$integrations$2f$supabase$2f$client$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].rpc('register_library_visit', {
@@ -2318,9 +2327,10 @@ async function registerStudent(payload) {
         p_student_id: studentId,
         p_duration_minutes: payload.duration_minutes,
         p_baggage_info: payload.baggage_info.trim() || 'No bag declared',
-        p_short_code: createShortCode()
+        p_short_code: createShortCode(),
+        p_zone: payload.zone
     });
-    if (error) throw new Error(formatSupabaseError(error));
+    if (error) throw new Error(formatSupabaseError(error, 'Unable to register your visit', studentZoneMigrationMessage));
     return normalizeSession(data);
 }
 async function getStudentStatus(code) {
@@ -2331,6 +2341,24 @@ async function getStudentStatus(code) {
     const session = data?.[0];
     if (!session) throw new Error('Access code not found');
     return normalizeSession(session);
+}
+async function checkoutStudent(code) {
+    const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$integrations$2f$supabase$2f$client$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].rpc('checkout_library_session', {
+        p_short_code: code.toUpperCase()
+    });
+    if (error) throw new Error(formatSupabaseError(error, 'Unable to check out', studentActionsMigrationMessage));
+    return normalizeSession(data);
+}
+async function requestSessionExtension(code, requestedMinutes) {
+    if (!Number.isInteger(requestedMinutes) || requestedMinutes < 1 || requestedMinutes > 60) {
+        throw new Error('Request between 1 and 60 additional minutes.');
+    }
+    const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$integrations$2f$supabase$2f$client$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].rpc('request_library_session_extension', {
+        p_short_code: code.toUpperCase(),
+        p_requested_minutes: requestedMinutes
+    });
+    if (error) throw new Error(formatSupabaseError(error, 'Unable to request additional time', studentActionsMigrationMessage));
+    return normalizeSession(data);
 }
 async function getAdminSessions() {
     const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$integrations$2f$supabase$2f$client$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('library_sessions').select('*').order('created_at', {
@@ -2348,6 +2376,14 @@ async function updateAdminStatus(id, zone, status) {
     if (error) throw new Error(formatSupabaseError(error));
     return normalizeSession(data);
 }
+async function resolveSessionExtension(id, approve) {
+    const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$frontend$2f$src$2f$integrations$2f$supabase$2f$client$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].rpc('resolve_library_session_extension', {
+        p_session_id: id,
+        p_approve: approve
+    });
+    if (error) throw new Error(formatSupabaseError(error, 'Unable to resolve extension request', studentActionsMigrationMessage));
+    return normalizeSession(data);
+}
 function createShortCode() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     return Array.from({
@@ -2363,9 +2399,12 @@ function normalizeSession(session) {
     }
     return session;
 }
-function formatSupabaseError(error, fallback = 'Unable to complete the library request') {
-    if (error.code === 'PGRST202' || error.code === 'PGRST205') {
-        return 'The library tables are not installed in Supabase yet. Run all SQL migrations in supabase/migrations/ in timestamp order, setting the initial admin email before the final migration.';
+function formatSupabaseError(error, fallback = 'Unable to complete the library request', missingFunctionMessage = 'The Supabase library schema is out of date. Apply all SQL migrations in supabase/migrations/ in timestamp order, setting the initial admin email before the final migration.') {
+    if (error.code === 'PGRST202') {
+        return missingFunctionMessage;
+    }
+    if (error.code === 'PGRST205') {
+        return 'The Supabase library schema is out of date. Apply all SQL migrations in supabase/migrations/ in timestamp order, setting the initial admin email before the final migration.';
     }
     if (error.code === 'PGRST204') {
         return 'The Supabase library schema is out of date. Run the latest migration in supabase/migrations/ in the Supabase SQL Editor.';

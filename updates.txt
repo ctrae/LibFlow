@@ -25,3 +25,4 @@ removed date and time from Header
 
 removed name from Header
 <span className="hidden text-sm text-muted-foreground md:inline">{profile?.full_name || profile?.email}</span>
+
