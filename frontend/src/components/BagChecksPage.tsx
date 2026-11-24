@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Check, ClipboardCheck, Loader2, LogOut, RefreshCw } from 'lucide-react';
 import { AuthGate } from '@/components/AuthGate';
 import { useAuth } from '@/hooks/useAuth';
-import { getAdminSessions, LibrarySession, updateAdminStatus } from '@/lib/libraryApi';
+import { getBagClaims, verifyBagClaim, type LibrarySession } from '@/lib/libraryApi';
 
 export function BagChecksPage() {
   return (
@@ -16,7 +16,7 @@ export function BagChecksPage() {
 
 function BagChecksContent() {
   const { profile, signOut } = useAuth();
-  const [sessions, setSessions] = useState<LibrarySession[]>([]);
+  const [bagClaims, setBagClaims] = useState<LibrarySession[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
@@ -29,7 +29,7 @@ function BagChecksContent() {
     setError('');
 
     try {
-      setSessions(await getAdminSessions());
+      setBagClaims(await getBagClaims());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load bag checks.');
     } finally {
@@ -42,14 +42,6 @@ function BagChecksContent() {
     void loadSessions();
   }, [loadSessions]);
 
-  const bagClaims = useMemo(
-    () =>
-      sessions.filter(
-        (session) =>
-          session.baggage_info.trim().toLowerCase() !== 'no bag declared',
-      ),
-    [sessions],
-  );
   const pendingClaims = bagClaims.filter((session) => session.status !== 'exited');
   const verifiedClaims = bagClaims.filter((session) => session.status === 'exited');
 
@@ -59,12 +51,8 @@ function BagChecksContent() {
     setSuccess('');
 
     try {
-      const updated = await updateAdminStatus(
-        session.id,
-        session.zone || 'Main section',
-        'exited',
-      );
-      setSessions((current) =>
+      const updated = await verifyBagClaim(session.id);
+      setBagClaims((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
       setSuccess(`Bag handoff verified for ${session.name}.`);

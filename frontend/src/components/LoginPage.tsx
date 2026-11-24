@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { getCurrentProfile } from '@/lib/libraryApi';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -30,17 +31,10 @@ export default function Login() {
       if (error) throw error;
       authenticated = true;
 
-      const { error: loginRecordError } = await supabase.rpc('record_library_staff_login');
-      if (loginRecordError) throw loginRecordError;
-
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('user_type, is_approved')
-        .eq('auth_user_id', data.user.id)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-      if (!profile || profile.user_type === 'Student') {
+      const accessToken = data.session?.access_token;
+      if (!accessToken) throw new Error('Sign-in did not return an access token.');
+      const profile = await getCurrentProfile(accessToken);
+      if (profile.user_type === 'Student') {
         throw new Error('No staff profile is linked to this account. Request staff access first.');
       }
 
@@ -49,7 +43,7 @@ export default function Login() {
         router.replace('/pending');
       } else {
         toast({ title: 'Welcome back!', description: 'Successfully logged in.' });
-        router.replace('/');
+        router.replace('/bag-checks');
       }
       authenticated = false;
     } catch (caught) {

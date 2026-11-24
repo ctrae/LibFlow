@@ -4,6 +4,20 @@ alter table public.users
   add column if not exists last_login_at timestamptz,
   add column if not exists is_approved boolean not null default false;
 
+alter table public.users
+  drop constraint if exists users_user_type_check;
+alter table public.users
+  add constraint users_user_type_check
+  check (
+    user_type in (
+      'Student',
+      'HeadLibrarian',
+      'Head Librarian',
+      'LibraryStaff',
+      'Library Staff'
+    )
+  );
+
 alter table public.users drop constraint if exists users_email_check;
 alter table public.users
   add constraint users_email_check

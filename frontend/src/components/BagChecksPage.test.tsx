@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BagChecksPage } from '@/components/BagChecksPage';
 
 const mocks = vi.hoisted(() => ({
-  getAdminSessions: vi.fn(),
-  updateAdminStatus: vi.fn(),
+  getBagClaims: vi.fn(),
+  verifyBagClaim: vi.fn(),
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
@@ -25,8 +25,8 @@ vi.mock('@/hooks/useAuth', () => ({
 }));
 
 vi.mock('@/lib/libraryApi', () => ({
-  getAdminSessions: mocks.getAdminSessions,
-  updateAdminStatus: mocks.updateAdminStatus,
+  getBagClaims: mocks.getBagClaims,
+  verifyBagClaim: mocks.verifyBagClaim,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -55,26 +55,18 @@ const bagSession = {
 describe('BagChecksPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getAdminSessions.mockResolvedValue([
-      bagSession,
-      { ...bagSession, id: 'session-2', baggage_info: 'No bag declared' },
-    ]);
-    mocks.updateAdminStatus.mockResolvedValue({ ...bagSession, status: 'exited' });
+    mocks.getBagClaims.mockResolvedValue([bagSession]);
+    mocks.verifyBagClaim.mockResolvedValue({ ...bagSession, status: 'exited' });
   });
 
   it('shows only bag claims and marks a verified handoff complete', async () => {
     render(<BagChecksPage />);
 
     expect(await screen.findByText('Black backpack')).toBeInTheDocument();
-    expect(screen.queryByText('No bag declared')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Verify handoff' }));
 
     await waitFor(() => {
-      expect(mocks.updateAdminStatus).toHaveBeenCalledWith(
-        'session-1',
-        'Main section',
-        'exited',
-      );
+      expect(mocks.verifyBagClaim).toHaveBeenCalledWith('session-1');
     });
     expect(await screen.findByText('Verified')).toBeInTheDocument();
   });

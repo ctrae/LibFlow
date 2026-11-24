@@ -67,51 +67,46 @@ class LibraryStaff(AuthorizedUser):
     assigned_zone: StaffZone
 
 
+class StaffProfile(BaseModel):
+    user_id: UUID
+    email: str
+    user_type: str
+    full_name: str | None = None
+    is_approved: bool
+
+
 class LibrarySession(BaseModel):
-    model_config = ConfigDict(validate_assignment=True)
+    model_config = ConfigDict(extra="ignore")
 
     id: UUID
-    user_id: UUID
+    user_id: UUID | None = None
     name: str
     email: str
     student_id: str
     short_code: str
     duration_minutes: int
-    allotted_time: int
-    bag_amount: int
     baggage_info: str
     zone: Zone | None = None
-    status: SessionStatus = SessionStatus.active
+    status: SessionStatus
     created_at: datetime
-    checkin_time: datetime
-    checkout_time: datetime | None = None
     expires_at: datetime
     updated_at: datetime
 
-    def update_status(self, zone: Zone, status: SessionStatus, at: datetime) -> None:
-        self.zone = zone
-        self.status = status
-        self.checkout_time = at if status == SessionStatus.exited else None
-        self.updated_at = at
-
-    def close_session(self, at: datetime) -> None:
+    def close_session(self) -> None:
         self.status = SessionStatus.exited
-        self.checkout_time = at
-        self.updated_at = at
+        self.updated_at = datetime.now(timezone.utc)
 
-    def auto_timeout(self, at: datetime) -> LibrarySession:
-        if self.status == SessionStatus.active and self.expires_at <= at:
+    def auto_timeout(self, at: datetime | None = None) -> LibrarySession:
+        now = at or datetime.now(timezone.utc)
+        if self.status == SessionStatus.active and self.expires_at <= now:
             self.status = SessionStatus.expired
-            self.checkout_time = at
-            self.updated_at = at
+            self.updated_at = now
         return self
 
 
 class BagClaim(BaseModel):
-    model_config = ConfigDict(validate_assignment=True)
-
     session_id: UUID
-    bag_tag: str
+    bag_tag: str | None = None
     student_name: str
     student_id: str
     baggage_info: str
@@ -127,27 +122,14 @@ class BagClaim(BaseModel):
 
     @classmethod
     def for_session(cls, session: LibrarySession) -> BagClaim:
+        verified = session.status == SessionStatus.exited
         return cls(
             session_id=session.id,
-            bag_tag=cls.generate_bag_tag(),
             student_name=session.name,
             student_id=session.student_id,
             baggage_info=session.baggage_info,
             zone=session.zone,
+            status=BagClaimStatus.verified if verified else BagClaimStatus.pending,
             created_at=session.created_at,
-        )
-
-    def get_status(self) -> BagClaimStatus:
-        return self.status
-
-    def set_status(
-        self,
-        status: BagClaimStatus,
-        at: datetime | None = None,
-    ) -> None:
-        self.status = status
-        self.verified_at = (
-            at or datetime.now(timezone.utc)
-            if status == BagClaimStatus.verified
-            else None
+            verified_at=session.updated_at if verified else None,
         )

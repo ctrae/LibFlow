@@ -2,7 +2,13 @@
 create table if not exists public.users (
   user_id uuid primary key default gen_random_uuid(), -- userID
   email text not null unique check (lower(email) like '%@mymona.uwi.edu'), -- email
-  user_type text not null check (user_type in ('Student', 'HeadLibrarian', 'LibraryStaff')),
+  user_type text not null check (user_type in (
+    'Student',
+    'HeadLibrarian',
+    'Head Librarian',
+    'LibraryStaff',
+    'Library Staff'
+  )),
   student_id integer unique, -- studentID for Students
   staff_id integer unique, -- staffID for AuthorizedUsers
   department text, -- department for AuthorizedUsers

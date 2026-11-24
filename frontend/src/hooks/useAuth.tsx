@@ -3,15 +3,8 @@
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-
-export type LibraryUserProfile = {
-  user_id: string;
-  auth_user_id: string | null;
-  email: string;
-  user_type: 'Student' | 'Head Librarian' | 'Library Staff';
-  full_name: string | null;
-  is_approved: boolean;
-};
+import { getCurrentProfile, type LibraryUserProfile } from '@/lib/libraryApi';
+export type { LibraryUserProfile } from '@/lib/libraryApi';
 
 interface AuthContextType {
   user: User | null;
@@ -57,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !session?.access_token) {
       setProfile(null);
       setIsProfileLoading(false);
       return;
@@ -67,14 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsProfileLoading(true);
     void (async () => {
       try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('user_id, auth_user_id, email, user_type, full_name, is_approved')
-          .eq('auth_user_id', user.id)
-          .maybeSingle();
+        const nextProfile = await getCurrentProfile(session.access_token);
         if (!active) return;
-        setProfile(data as LibraryUserProfile | null);
-        setProfileError(error?.message ?? null);
+        setProfile(nextProfile);
+        setProfileError(null);
         setIsProfileLoading(false);
       } catch (error) {
         if (!active) return;
@@ -86,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [session?.access_token, user]);
 
   async function signOut() {
     const { error } = await supabase.auth.signOut();

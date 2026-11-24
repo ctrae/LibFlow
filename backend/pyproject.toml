@@ -5,6 +5,7 @@ description = "Bag-check API for Libflow"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
+    "httpx>=0.28",
     "pydantic>=2.10",
     "uvicorn[standard]>=0.32",
 ]
@@ -18,7 +19,6 @@ include = ["app*"]
 
 [project.optional-dependencies]
 dev = [
-    "httpx>=0.28",
     "pytest>=8.3",
 ]
 
