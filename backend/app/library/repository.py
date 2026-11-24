@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from app.library.models import LibrarySession
+from app.library.models import LibrarySession, SessionStatus, Zone
 
 
 class LibraryRepository(Protocol):
@@ -14,6 +14,6 @@ class LibraryRepository(Protocol):
     async def update_session_status(
         self,
         session_id: UUID,
-        zone: str,
-        status: str,
+        zone: Zone,
+        status: SessionStatus,
     ) -> LibrarySession: ...

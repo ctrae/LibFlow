@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -8,6 +8,7 @@ import pytest
 from app.core.config import Settings
 from app.infrastructure.supabase_repository import SupabaseLibraryRepository
 from app.library.errors import SessionNotFoundError
+from app.library.models import SessionStatus, Zone
 
 
 class SupabaseMockTransport(httpx.AsyncBaseTransport):
@@ -45,9 +46,14 @@ class SupabaseMockTransport(httpx.AsyncBaseTransport):
                     "email": "student@mymona.uwi.edu",
                     "student_id": "12345678",
                     "short_code": "AB12",
+                    "check_in_time": now.isoformat(),
+                    "check_out_time": (now + timedelta(minutes=60)).isoformat(),
                     "duration_minutes": 60,
+                    "allotted_time": 60,
+                    "bag_amount": 1,
                     "baggage_info": "Backpack",
                     "zone": "Main section",
+                    "session_status": "active",
                     "status": "active",
                     "created_at": now.isoformat(),
                     "expires_at": (now + timedelta(minutes=60)).isoformat(),
@@ -93,6 +99,10 @@ def test_repository_authenticates_staff_and_reads_supabase_rows() -> None:
         assert repository.staff_profile is not None
         assert repository.staff_profile.full_name == "Staff Example"
         assert sessions[0].baggage_info == "Backpack"
+        assert sessions[0].session_id == UUID(transport.session_id)
+        assert sessions[0].zone == Zone.main
+        assert sessions[0].student_id == 12345678
+        assert sessions[0].checkout_time is None
 
     asyncio.run(run())
 
@@ -122,7 +132,7 @@ def test_repository_translates_missing_session_rpc_error() -> None:
         asyncio.run(
             repository.update_session_status(
                 session_id=uuid4(),
-                zone="Main section",
-                status="exited",
+                zone=Zone.main,
+                status=SessionStatus.exited,
             )
         )

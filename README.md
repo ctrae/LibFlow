@@ -41,6 +41,8 @@ python -m uvicorn app.main:app --reload --port 8000
 
 The frontend defaults to `http://localhost:8000`; set `NEXT_PUBLIC_BACKEND_URL` in `frontend/.env.local` if the API runs elsewhere. Apply the SQL scripts in `database/` to the Supabase project in timestamp order before using the app.
 
+The checkout timestamp migration keeps `expires_at` as the planned deadline and only records `check_out_time` for an actual exit.
+
 Bag-check endpoints:
 
 - `GET /library/profile`

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 import httpx
+from pydantic import TypeAdapter
 
 from app.core.config import Settings
 from app.library.errors import (
@@ -12,7 +14,12 @@ from app.library.errors import (
     SessionNotFoundError,
     SupabaseServiceError,
 )
-from app.library.models import LibrarySession, StaffProfile
+from app.library.models import (
+    LibrarySession,
+    SessionStatus,
+    StaffProfile,
+    Zone,
+)
 
 
 class SupabaseLibraryRepository:
@@ -67,27 +74,29 @@ class SupabaseLibraryRepository:
             "/rest/v1/library_sessions",
             params={
                 "select": (
-                    "id,user_id,name,email,student_id,short_code,duration_minutes,"
-                    "baggage_info,zone,status,created_at,expires_at,updated_at"
+                    "id,session_id,user_id,name,email,student_id,short_code,"
+                    "check_in_time,check_out_time,duration_minutes,allotted_time,"
+                    "bag_amount,baggage_info,zone,session_status,status,created_at,"
+                    "expires_at,updated_at"
                 ),
                 "order": "created_at.desc",
             },
         )
-        return [LibrarySession.model_validate(row).auto_timeout() for row in rows]
+        return [self._to_domain_session(row).auto_timeout() for row in rows]
 
     async def update_session_status(
         self,
         session_id: UUID,
-        zone: str,
-        status: str,
+        zone: Zone,
+        status: SessionStatus,
     ) -> LibrarySession:
         result = await self._request(
             "POST",
             "/rest/v1/rpc/update_library_session_status",
             json={
                 "p_session_id": str(session_id),
-                "p_zone": zone,
-                "p_status": status,
+                "p_zone": self._to_database_zone(zone),
+                "p_status": status.value,
             },
         )
         if isinstance(result, list):
@@ -96,7 +105,62 @@ class SupabaseLibraryRepository:
             result = result[0]
         if not isinstance(result, dict):
             raise SupabaseServiceError("Supabase returned an invalid session response.")
-        return LibrarySession.model_validate(result).auto_timeout()
+        return self._to_domain_session(result).auto_timeout()
+
+    @staticmethod
+    def _to_database_zone(zone: Zone) -> str:
+        return "Main section" if zone == Zone.main else "Basement"
+
+    @staticmethod
+    def _to_domain_session(row: dict[str, Any]) -> LibrarySession:
+        datetime_adapter = TypeAdapter(datetime)
+        uuid_adapter = TypeAdapter(UUID)
+        checkin_time = datetime_adapter.validate_python(row["check_in_time"])
+        status = SessionStatus(row.get("status") or row["session_status"])
+        session_id = uuid_adapter.validate_python(
+            row.get("id") or row["session_id"]
+        )
+        user_id = uuid_adapter.validate_python(row["user_id"])
+        expiration_value = row.get("expires_at") or row.get("check_out_time")
+        if expiration_value is None:
+            raise SupabaseServiceError("Supabase session has no expiration timestamp.")
+        expires_at = datetime_adapter.validate_python(expiration_value)
+
+        updated_at = datetime_adapter.validate_python(row["updated_at"])
+        checkout_time = None
+        if status == SessionStatus.exited:
+            checkout_value = row.get("check_out_time") or updated_at
+            checkout_time = datetime_adapter.validate_python(checkout_value)
+            checkout_time = min(checkout_time, updated_at)
+
+        database_zone = row.get("zone")
+        zone = None
+        if database_zone in {"Main", "Main section"}:
+            zone = Zone.main
+        elif database_zone == "Basement":
+            zone = Zone.basement
+
+        return LibrarySession(
+            session_id=session_id,
+            user_id=user_id,
+            student_id=int(row["student_id"]),
+            short_code=row["short_code"],
+            checkin_time=checkin_time,
+            checkout_time=checkout_time,
+            duration_minutes=row["duration_minutes"],
+            allotted_time=row.get("allotted_time") or row["duration_minutes"],
+            bag_amount=row.get("bag_amount", 0),
+            zone=zone,
+            session_status=status,
+            name=row["name"],
+            email=row["email"],
+            baggage_info=row.get("baggage_info") or "No bag declared",
+            created_at=datetime_adapter.validate_python(
+                row.get("created_at") or checkin_time
+            ),
+            expires_at=expires_at,
+            updated_at=updated_at,
+        )
 
     async def _request(
         self,

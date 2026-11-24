@@ -1,4 +1,4 @@
-alter table public.library_sessions
+lter table public.library_sessions
   add column if not exists id uuid,
   add column if not exists name text,
   add column if not exists email text,
