@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Hepta_Slab } from "next/font/google";
 import "./globals.css";
+import { TanStackQueryClientProvider } from "./shared/providers/QueryClientProvider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const heptaSlab = Hepta_Slab({
+  variable: "--font-hepta-slab",
   subsets: ["latin"],
 });
 
@@ -19,11 +15,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${heptaSlab.variable} h-full antialiased`}>
+      <TanStackQueryClientProvider>
+        <body className="min-h-full flex flex-col">{children}</body>
+      </TanStackQueryClientProvider>
     </html>
   );
 }
