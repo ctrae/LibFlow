@@ -1,284 +1,189 @@
-# Libflow
+# LIBFLOW
 
-Libflow is a library occupancy and visit-tracking system for the FST Library. It records student visits, baggage information, zone status, session duration, and movement history so library staff can monitor occupancy and manage exits from a simple operations dashboard.
+LIBFLOW is a library occupancy and visit-tracking project. This repository
+contains a Next.js frontend, a FastAPI backend, and the Supabase database
+schema.
 
-## Current Pilot Features
-
-- QR-friendly student registration page at `/students`
-- Student registration with:
-  - Full name
-  - `@mymona.uwi.edu` email validation
-  - Student ID number
-  - Visit duration of 15, 30, 45, or 60 minutes
-  - Baggage information
-- Four-character access code for students
-- Student status page with remaining time, zone, status, and baggage details
-- Admin dashboard with occupancy and recent activity
-- Live session page at `/live-sessions`
-- Bag check page at `/bags`
-- Analytics page at `/analytics`
-- Security override dashboard at `/overrides`
-- Main dashboard QR code linking to the student registration page
-- Expiry detection based on `expires_at`
-- Admin alerts for sessions whose time has ended
-- Automatic refresh of admin session data every 30 seconds
-- Direct Supabase reads and writes from the frontend
-- GSAP landing animation on the main dashboard
-
-## Architecture
+## Project structure
 
 ```text
-Student phone
-    |
-    | QR code -> /student
-    v
-Next.js frontend
-    |
-    | Supabase browser client
-    v
-Supabase PostgreSQL
-    |
-    +-- library_sessions
-    +-- library_session_events
-
-Library staff
-    |
-    +-- / dashboard
-    +-- /overrides
-    +-- /live-sessions
-    +-- /bag-checks
-    +-- /analytics
+LibFlow/
+├── backend/
+│   ├── app/
+│   │   ├── core/config.py
+│   │   ├── database/supabase.py
+│   │   └── library/
+│   │       ├── repository.py
+│   │       ├── router.py
+│   │       ├── schemas.py
+│   │       └── service.py
+│   ├── main.py
+│   └── README.md
+├── database/
+│   ├── README.md
+│   └── schema.sql
+└── frontend/
+    ├── app/
+    │   ├── check-in/
+    │   ├── live-sessions/
+    │   ├── login/
+    │   └── student/
+    ├── lib/
+    ├── types/
+    └── package.json
 ```
 
-The primary pilot data path is direct browser-to-Supabase access. The FastAPI service under `src/backend` contains a matching in-memory library API for development and future server-side processing, but the current frontend does not depend on it.
+## Architecture layers and integration status
+
+The backend follows the layered architecture pattern: presentation
+(`router.py`, `schemas.py`), business logic (`service.py`), data access
+(`repository.py`) and storage (Supabase). Each layer calls only the layer
+directly beneath it.
+
+### Backend layer mapping
+
+| Layer | Current files | Responsibility and current boundary |
+|---|---|---|
+| Presentation / API | `backend/app/library/router.py`, `backend/app/library/schemas.py` | FastAPI routes, HTTP parameters, and request/response validation. |
+| Application / business logic | `backend/app/library/service.py` | Library operations and business rules. It currently imports FastAPI exceptions and API schemas, so it is still coupled to the presentation framework. |
+| Persistence adapter | `backend/app/library/repository.py` | Reads and writes library data through Supabase. It is a concrete implementation, not an implementation of a separate repository port yet. |
+| Infrastructure | `backend/app/database/supabase.py`, `backend/app/core/config.py` | Creates the Supabase client and loads configuration. |
+| Application bootstrap | `backend/main.py` and dependency providers in `router.py` | Creates the FastAPI app and connects routes. Some dependency wiring still lives in the router. |
+| Domain | No separate domain package yet | Domain rules currently live in the service, while request/response shapes are in API schemas. |
+
+The runtime request flow is:
+
+```text
+HTTP request
+  → Presentation: router.py + schemas.py
+  → Application: service.py
+  → Persistence adapter: repository.py
+  → Infrastructure: Supabase client
+  → Supabase PostgreSQL
+```
+
+### Frontend layer mapping
+
+| Layer | Current files | Current responsibility |
+|---|---|---|
+| Presentation | `frontend/app/` | Next.js routes and page UI. |
+| Data access | `frontend/lib/` | Supabase browser client and frontend data helpers. |
+| Shared types | `frontend/types/` | TypeScript data shapes used by the UI. |
+| Application / domain | No distinct layer yet | Use cases and domain rules are not separated into dedicated layers. |
+
+The frontend currently has its own Supabase browser client. It is **not yet
+fully integrated with the FastAPI API**. Some frontend helpers still query
+legacy database column names such as `session_id` and `session_status`; the
+current schema and backend use `id` and `status`. The `/check-in` page currently
+validates and displays form data in the browser rather than creating a database
+session. Treat this as a work in progress when testing the frontend and backend
+together.
+
+The backend uses the current tables `library_sessions`,
+`library_session_events`, `staff`, and `daily_visit_totals`, along with the
+database functions defined in `database/schema.sql`.
 
 ## Requirements
 
-- Node.js 18 or newer
-- npm
-- Python 3.11 or newer for the optional FastAPI service
-- A Supabase project
+- Node.js supported by the installed Next.js version
+- pnpm 10.6.3 (the frontend declares this package manager)
+- Python 3.11 or later
+- A Supabase project for database-backed functionality
 
-## Frontend Setup
+## Database setup
 
-Install dependencies:
+If the project database has not already been initialized, review
+[`database/schema.sql`](database/schema.sql) and apply it to the correct
+Supabase project using the Supabase SQL Editor. Coordinate with the team before
+changing a shared database. The script creates the tables, constraints,
+policies, triggers, and functions used by the backend.
+
+## Frontend setup
+
+From the repository root:
 
 ```powershell
-cd src/frontend
-npm install
+cd frontend
+pnpm install
 ```
 
-Create or update `src/frontend/.env.local`:
+Create `frontend/.env.local` with the Supabase project URL and an anon/publishable
+key:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
-NEXT_PUBLIC_STUDENT_URL=http://localhost:3000/student
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_OR_PUBLISHABLE_KEY
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-The publishable key is safe to expose to the browser when Row Level Security policies are configured correctly. Never put a Supabase service-role key in `.env.local`, frontend code, or a public repository.
+Never put the Supabase service-role key in the frontend or any `NEXT_PUBLIC_`
+variable.
 
-## Supabase Database Setup
-
-The frontend expects two tables:
-
-- `public.library_sessions`
-- `public.library_session_events`
-
-Run this migration in the Supabase Dashboard:
-
-1. Open the Supabase project connected to `NEXT_PUBLIC_SUPABASE_URL`.
-2. Go to **SQL Editor**.
-3. Create a new query.
-4. Copy the contents of [supabase/migrations/202609200001_library_tracking.sql](supabase/migrations/202609200001_library_tracking.sql).
-5. Run the query.
-6. Refresh the frontend.
-
-If the migration has not been applied, the application displays an error similar to:
-
-```text
-The library tables are not installed in Supabase yet.
-```
-
-The migration creates:
-
-- UUID-backed library sessions
-- Unique four-character access codes
-- Duration constraints for 15, 30, 45, and 60 minutes
-- Expiry timestamps
-- Session event history
-- Indexes for access-code, time, status, and zone queries
-- Initial pilot Row Level Security policies
-
-### Pilot Security Warning
-
-The initial migration permits anonymous insert, read, update, and event logging so the QR workflow can operate without authentication. This is suitable only for early testing. Before production, replace these policies with controlled access using Supabase Auth, server-side routes, or trusted Edge Functions. In particular, anonymous users must not be allowed to update arbitrary student sessions.
-
-## Run the Frontend
+Start the development server:
 
 ```powershell
-cd src/frontend
-npm run dev
+pnpm dev
 ```
 
-Open:
+The frontend is available at <http://localhost:3000>. Current routes include:
 
-- http://localhost:3000/ for the staff overview
-- http://localhost:3000/student for student registration
-- http://localhost:3000/overrides for staff status changes
+- `/check-in` — student check-in form
+- `/student` — student session page
+- `/live-sessions` — occupancy page
+- `/login` — staff login
 
-If environment variables are changed while Next.js is running, restart the dev server so the new values are bundled into the browser client.
-
-## Frontend Commands
-
-Run these from `src/frontend`:
+Available frontend checks:
 
 ```powershell
-npm run dev       # Start the development server
-npm run build     # Create a production build
-npm run start     # Serve the production build
-npm run lint      # Run ESLint
-npm run test      # Run Vitest tests
+pnpm lint
+pnpm build
 ```
 
-## Optional FastAPI Service
+## Backend setup
 
-The backend is located at `src/backend` and exposes a library router at `/library`. Its current session store is in memory and resets whenever the process restarts. The frontend pilot uses Supabase directly instead.
-
-Install backend dependencies from the backend directory using your preferred Python environment. With dependencies installed, start FastAPI from the repository root with:
+From the repository root:
 
 ```powershell
-uvicorn src.backend.app.main:app --reload --port 8000
+cd backend
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-Useful endpoints in the optional service:
+Copy `backend/.env.example` to `backend/.env` and fill in the values:
 
-- `GET /health`
-- `POST /library/registrations`
-- `GET /library/students/{short_code}`
-- `GET /library/admin/sessions`
-- `POST /library/admin/sessions/{session_id}/status`
-- `GET /library/admin/notifications`
-
-## Data Model
-
-### `library_sessions`
-
-| Column | Purpose |
-| --- | --- |
-| `id` | UUID identifying one visit/session instance |
-| `name` | Student name |
-| `email` | Student email, restricted to `@mymona.uwi.edu` by the pilot check constraint |
-| `student_id` | Student's institutional ID |
-| `short_code` | Four-character code shown to the student |
-| `duration_minutes` | 15, 30, 45, or 60 |
-| `baggage_info` | Bag description or `No bag declared` |
-| `zone` | `Main section` or `Basement` |
-| `status` | `active`, `exited`, or `expired` |
-| `created_at` | Registration time |
-| `expires_at` | Calculated time limit |
-| `updated_at` | Last status update |
-
-### `library_session_events`
-
-This is the append-only movement log. Each registration or admin status change creates an event containing:
-
-- Session UUID
-- Event type
-- Zone
-- Timestamp
-
-A student can register multiple visits in one day. Each visit is a separate row linked to its own UUID, while the student's institutional ID can be used to group their historical records.
-
-## Typical Workflow
-
-### Student
-
-1. Scan the QR code displayed at the library entrance.
-2. Open `/student`.
-3. Enter name, institutional email, ID number, duration, and baggage details.
-4. Submit the registration.
-5. Keep the generated four-character access code.
-6. Use the student status page to check remaining time and baggage information.
-
-### Security or Library Staff
-
-1. Open `/overrides`.
-2. Find the student by name, ID suffix, or access code.
-3. Set the student's zone to Main section or Basement.
-4. Set the state to Inside, Exited, Waiting, or Expired.
-5. Use `/bags` to verify and close held baggage claims.
-6. Use `/analytics` to review traffic by time range.
-
-## Expiry Behavior
-
-The frontend derives an expired state when `expires_at` is in the past and the session has not been exited. This means alerts can appear without a background worker. The override page refreshes its session list every 30 seconds, and the student countdown refreshes on the same interval.
-
-For production, add a scheduled Supabase job, Edge Function, or server worker if expired status must be persisted in the database rather than derived at read time.
-
-## Project Structure
-
-```text
-Libflow/
-├── README.md
-├── supabase/
-│   └── migrations/
-│       └── 202609200001_library_tracking.sql
-└── src/
-    ├── frontend/
-    │   ├── src/app/
-    │   │   ├── page.tsx
-    │   │   ├── student/page.tsx
-    │   │   ├── overrides/page.tsx
-    │   │   ├── live-sessions/page.tsx
-    │   │   ├── bag-checks/page.tsx
-    │   │   └── analytics/page.tsx
-    │   ├── src/components/
-    │   │   ├── Lander.tsx
-    │   │   ├── StudentPortal.tsx
-    │   │   ├── OverrideDashboard.tsx
-    │   │   └── OperationsPage.tsx
-    │   └── src/lib/
-    │       └── libraryApi.ts
-    └── backend/
-        └── app/
-            ├── main.py
-            └── library/router.py
+```env
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVER_ONLY_SERVICE_ROLE_KEY
+FRONTEND_URL=http://localhost:3000
+API_HOST=0.0.0.0
+API_PORT=8000
 ```
 
-## Troubleshooting
+Keep the service-role key private. Do not commit `backend/.env`, place the key
+in frontend configuration, or share it in team chat.
 
-### `Failed to fetch`
+Run the API from the `backend` directory:
 
-- Confirm the Supabase URL is correct.
-- Confirm the browser is using the current `.env.local` values.
-- Restart `npm run dev` after changing environment variables.
-- Confirm the Supabase project is reachable.
-- Check the browser console for the hostname being requested.
+```powershell
+uvicorn main:app --reload --port 8000
+```
 
-### `library_sessions` does not exist
+- Health check: <http://localhost:8000/health>
+- Interactive API documentation: <http://localhost:8000/docs>
 
-Run the migration in the Supabase SQL Editor. A frontend build cannot create database tables automatically.
+The backend README is in [`backend/README.md`](backend/README.md).
 
-### Student registration does not appear for staff
+## API areas
 
-- Confirm the registration returned successfully.
-- Confirm the migration and anonymous pilot policies were applied.
-- Refresh `/overrides` or wait for its 30-second polling interval.
-- Check the Supabase Table Editor for the new row.
+The FastAPI backend currently provides endpoints for:
 
-### Historical analytics are empty
+- Student check-in and checkout
+- Session lookup and history
+- Occupancy and bag tracking
+- Session status updates and audit events
+- Hourly, daily, and average-stay analytics
+- Staff allowlist management
 
-Analytics are calculated from actual `library_sessions.created_at` records. The project does not generate historical visits automatically. Register real test visits or seed the table with approved test data.
-
-## Roadmap
-
-- Replace open pilot RLS policies with staff/student permissions.
-- Persist role-aware staff access through Supabase Auth.
-- Add a separate student identity table and deduplicate student profiles by institutional ID.
-- Add database-backed staff approval for stays longer than 60 minutes.
-- Add a proper baggage claim table and claim-code validation.
-- Add scheduled expiry processing and notifications.
-- Add real QR code generation hosted by the application instead of the external QR image endpoint.
-- Add device/event ingestion for RFID, NFC, barcode, or turnstile readers.
-- Add automated tests for session state transitions, expiry, policies, and analytics.
+Staff endpoints are documented as prototype functionality and should not be
+exposed in production without server-side authentication and authorization.
