@@ -4,7 +4,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
-Duration = Literal[15, 30, 45, 60]
 Zone = Literal["Main", "Basement"]
 SessionStatus = Literal["active", "exited", "expired"]
 StaffRole = Literal["library_staff", "head_librarian"]
@@ -15,7 +14,7 @@ class CheckInRequest(BaseModel):
 
     student_id: str = Field(min_length=9, max_length=9)
     student_email: EmailStr
-    allotted_minutes: Duration
+    allotted_minutes: int = Field(ge=15, le=480)
     zone: Zone = "Main"
     bag_number: str | None = Field(default=None, max_length=50)
     visit_reason: str | None = Field(default=None, max_length=100)

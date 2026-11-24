@@ -1,7 +1,8 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException
 
+from app.core.config import Settings, get_settings
 from app.library.repository import LibraryRepository
 from app.library.schemas import (
     CheckInRequest,
@@ -13,17 +14,38 @@ from app.library.schemas import (
 class LibraryService:
     """LIBFLOW business rules. No direct database calls live here."""
 
-    def __init__(self, repository: LibraryRepository):
+    def __init__(self, repository: LibraryRepository, settings: Settings | None = None):
         self.repository = repository
+        self.settings = settings or get_settings()
 
-    def check_in(self, request: CheckInRequest):
+    def is_library_open(self, now_utc: datetime) -> bool:
+        """True if check-in is allowed at this moment (SR-01: opening hours only)."""
+        s = self.settings
+        if not s.enforce_opening_hours:
+            return True
+        local = now_utc.astimezone(timezone(timedelta(hours=s.library_utc_offset_hours)))
+        opens = time.fromisoformat(s.library_open_time)
+        closes = time.fromisoformat(s.library_close_time)
+        return opens <= local.time() < closes
+
+    def check_in(self, request: CheckInRequest, now: datetime | None = None):
+        now = now or datetime.now(timezone.utc)
+
+        if not self.is_library_open(now):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Check-in is only available during library opening hours "
+                    f"({self.settings.library_open_time} to {self.settings.library_close_time})."
+                ),
+            )
+
         if self.repository.find_active_session(request.student_id):
             raise HTTPException(
                 status_code=409,
                 detail="Student already has an active library session.",
             )
 
-        now = datetime.now(timezone.utc)
         expires_at = now + timedelta(minutes=request.allotted_minutes)
 
         try:
@@ -148,7 +170,11 @@ class LibraryService:
         return {"expired_count": int(result.data or 0)}
 
     def get_active_bags(self):
-        return self.repository.list_active_bags()
+        # Sessions use `id`; the API exposes it as `session_id`.
+        return [
+            {**row, "session_id": row["id"]}
+            for row in self.repository.list_active_bags()
+        ]
 
     def update_bag(self, session_id: str, bag_number: str | None):
         session = self.repository.get_session(session_id)
