@@ -35,9 +35,10 @@ LibFlow/
 
 ## Architecture layers and integration status
 
-The backend has recognizable presentation, business-logic, and data-access
-layers. This describes the current code organization; it is **not yet a strict
-Clean Architecture implementation**.
+The backend follows the layered architecture pattern: presentation
+(`router.py`, `schemas.py`), business logic (`service.py`), data access
+(`repository.py`) and storage (Supabase). Each layer calls only the layer
+directly beneath it.
 
 ### Backend layer mapping
 
@@ -112,6 +113,7 @@ key:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_OR_PUBLISHABLE_KEY
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 Never put the Supabase service-role key in the frontend or any `NEXT_PUBLIC_`
@@ -145,14 +147,10 @@ From the repository root:
 cd backend
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install fastapi "uvicorn[standard]" supabase "pydantic-settings[dotenv]" email-validator
+python -m pip install -r requirements.txt
 ```
 
-The repository does not currently contain a tracked Python dependency manifest,
-so the install command above is unpinned. A `requirements.txt` or `pyproject.toml`
-should be added to make backend setup reproducible.
-
-Create `backend/.env`:
+Copy `backend/.env.example` to `backend/.env` and fill in the values:
 
 ```env
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co

@@ -149,16 +149,10 @@ boundary.
 
 ## Run
 
-Run from the directory containing the `app` package:
+Run from inside the `backend` directory (the one containing `main.py`):
 
 ```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-If you place this backend under `src/backend`, run from the repository root:
-
-```bash
-uvicorn src.backend.app.main:app --reload --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
 ## API Endpoints
@@ -426,10 +420,10 @@ single API boundary.
 
 ## Testing
 
-Start the server:
+Start the server from inside `backend`:
 
 ```bash
-uvicorn app.main:app --reload --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
 Open FastAPI's interactive documentation:
