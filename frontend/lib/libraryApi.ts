@@ -1,4 +1,5 @@
 import { getOccupancy } from "./api";
+import { supabase } from "./supabaseClient"
 
 export async function getCurrentOccupancy(): Promise<number> {
   return getOccupancy();
