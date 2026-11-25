@@ -20,7 +20,7 @@ export default function Button({
     if (!disabled) {
       switch (variant) {
         case "primary":
-          return `${"bg-primary hover:bg-primary/80 dark:bg-foreground dark:text-background dark:hover:bg-foreground/80"}  text-white`;
+          return `${"bg-primary hover:bg-primary/80"}  text-white`;
         case "secondary":
           return `${"bg-secondary hover:bg-secondary/80"}  text-white`;
         case "warning":

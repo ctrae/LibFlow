@@ -12,6 +12,11 @@ import {
   ReportIcon,
   TableChartIcon,
 } from "../shared/components/Icons";
+import {
+  useCurrentProfile,
+  useCurrentUser,
+  useLogout,
+} from "../shared/hooks/useAuth";
 
 const Sessions = dynamic(() => import("./Sessions"), {
   loading: () => <p>Loading Sessions...</p>,
@@ -88,15 +93,12 @@ const defaultTabs: Tab[] = [
 
 export function DashboardContent() {
   const router = useRouter();
-  // const { user, isAuthenticated, isLoading } = useAuthStore();
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useCurrentProfile();
+  const { logout, isLoggingOut } = useLogout();
 
-  const user = {
-    avatarUrl: "",
-    name: "",
-  };
-
-  const isLoading = false;
-  const isAuthenticated = true;
+  const isLoading = userLoading || profileLoading;
+  const isAuthenticated = !!user;
 
   // const tabs = user ? getAllTabs(user.role) : defaultTabs;
   const tabs = defaultTabs;
@@ -133,6 +135,12 @@ export function DashboardContent() {
     }
   }, [searchParams, storedTab, tabs]);
 
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isLoading, isAuthenticated, router]);
+
   const setTab = (newTab: string) => {
     setCurrentTabKey(newTab);
     setCurrentTab(newTab);
@@ -151,6 +159,17 @@ export function DashboardContent() {
   if (!isAuthenticated || !user) {
     return null;
   }
+
+  const displayName =
+    profile?.full_name?.trim() ||
+    (user.user_metadata?.full_name as string | undefined)?.trim() ||
+    user.email?.split("@")[0] ||
+    "Staff";
+
+  const avatarUrl =
+    profile?.avatar_url ||
+    (user.user_metadata?.avatar_url as string | undefined) ||
+    "";
 
   return (
     <div className="min-h-screen bg-[#F6F7F9]">
@@ -205,13 +224,37 @@ export function DashboardContent() {
               </svg>
             </button>
 
-            {/* User Avatar */}
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-200 shrink-0 border border-gray-100">
-              <img
-                src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80"
-                alt="User profile"
-                className="w-full h-full object-cover"
-              />
+            <div className="flex items-center gap-3 pl-3 border-l border-[#edf2f7]">
+              <div className="text-right leading-tight">
+                <p className="text-sm font-semibold text-[#2d3748]">
+                  {displayName}
+                </p>
+                <p className="text-[11px] text-[#888ca0]">
+                  {profile?.user_type ?? "Staff"}
+                </p>
+              </div>
+
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-200 shrink-0 border border-gray-100">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-sm font-bold text-[#5a607f]">
+                    {displayName.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={logout}
+                disabled={isLoggingOut}
+                className="ml-2 rounded-[4px] border border-[#e2e8f0] px-3 h-9 text-xs font-semibold text-[#4a5568] hover:bg-gray-50 disabled:opacity-50"
+              >
+                {isLoggingOut ? "Signing out…" : "Sign out"}
+              </button>
             </div>
           </div>
         </header>
