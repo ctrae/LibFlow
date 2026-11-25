@@ -1,7 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
-import Link from 'next/link';
+import {  useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
@@ -18,7 +17,7 @@ export default function Login() {
   const router = useRouter();
   const { toast } = useToast();
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     let authenticated = false;
@@ -117,10 +116,6 @@ export default function Login() {
               {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in...</> : 'Sign in'}
             </Button>
           </form>
-          <p className="text-center text-sm text-muted-foreground">
-            New staff?{' '}
-            <Link href="/signup" className="font-medium text-primary hover:underline">Request an account</Link>
-          </p>
         </section>
       </div>
     </div>
