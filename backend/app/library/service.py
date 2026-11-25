@@ -28,10 +28,12 @@ class LibraryService:
         closes = time.fromisoformat(s.library_close_time)
         return opens <= local.time() < closes
 
-    def check_in(self, request: CheckInRequest, now: datetime | None = None):
+    def check_in(self, request: CheckInRequest, now: datetime | None = None, staff_override: bool = False):
+        """Register a visit. `staff_override` (staff route only) skips the
+        opening-hours rule; the one-active-session rule still applies."""
         now = now or datetime.now(timezone.utc)
 
-        if not self.is_library_open(now):
+        if not staff_override and not self.is_library_open(now):
             raise HTTPException(
                 status_code=403,
                 detail=(

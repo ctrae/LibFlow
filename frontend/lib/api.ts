@@ -193,6 +193,10 @@ async function request<T>(
 export const checkIn = (input: CheckInRequest) =>
   request<CheckInResponse>("/check-in", { method: "POST", body: input });
 
+/** Staff override check-in: allowed outside opening hours. Needs a staff sign-in. */
+export const staffCheckIn = (input: CheckInRequest) =>
+  request<CheckInResponse>("/staff/check-in", { method: "POST", body: input, staff: true });
+
 /** Check out using the session id returned at check-in. */
 export const checkOutBySession = (sessionId: string) =>
   request<CheckOutResponse>(`/check-out/${encodeURIComponent(sessionId)}`, { method: "POST" });
