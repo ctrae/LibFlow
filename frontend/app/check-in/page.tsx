@@ -1,38 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ApiError, checkIn, staffCheckIn, type Zone } from "@/lib/api";
+import { setCurrentStudentSession } from "@/lib/studentApi";
+import { useAuth } from "@/hooks/useAuth";
 
 const QUICK_MINUTES = [15, 30, 45, 60];
 
-export default function StudentPortal() {
-  const [fullName, setFullName] = useState("");
+export default function CheckInPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckInForm />
+    </Suspense>
+  );
+}
+
+function CheckInForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { profile } = useAuth();
+  // Staff mode needs BOTH a signed-in staff account and an explicit ?staff=1
+  // (the dashboard link). Students, or a kiosk left signed in, get the plain form.
+  // The backend checks the staff token again on /staff/check-in.
+  const staffMode = Boolean(profile) && searchParams.get("staff") === "1";
+  const [success, setSuccess] = useState("");
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
   const [minutes, setMinutes] = useState("");
-  const [zone, setZone] = useState("Main");
-  const [checkingBag, setCheckingBag] = useState<"no" | "yes">("no");
+  const [zone, setZone] = useState<Zone>("Main");
+  const [checkingBag, setCheckingBag] = useState<"No" | "Yes">("No");
   const [bagNumber, setBagNumber] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
-  function handleBagChoiceChange(value: "no" | "yes") {
+  function handleBagChoiceChange(value: "No" | "Yes") {
     setCheckingBag(value);
-    if (value === "no") {
+    if (value === "No") {
       setBagNumber("");
     }
   }
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    setMessage("");
+    setSuccess("");
 
-    const cleanName = fullName.trim();
     const cleanEmail = email.trim().toLowerCase();
     const cleanId = studentId.trim();
     const stayMinutes = Number(minutes);
-
-    if (!cleanName) {
-      setMessage("Please enter your full name.");
-      return;
-    }
 
     if (!cleanEmail.endsWith("@mymona.uwi.edu")) {
       setMessage("Please use your @mymona.uwi.edu email.");
@@ -53,16 +70,50 @@ export default function StudentPortal() {
       return;
     }
 
-    const bagSummary =
-      checkingBag === "yes"
-        ? bagNumber.trim()
-          ? `Bag checked (${bagNumber.trim()})`
-          : "Bag checked"
-        : "No bag declared";
+    setSubmitting(true);
 
-    setMessage(
-      `Registered ${cleanName} (${cleanId}) — ${zone}, ~${stayMinutes} mins, ${bagSummary}.`,
-    );
+    try {
+      const payload = {
+        student_id: cleanId,
+        student_email: cleanEmail,
+        allotted_minutes: stayMinutes,
+        zone,
+        bag_number: checkingBag === "Yes" && bagNumber.trim() ? bagNumber.trim() : null,
+      };
+      const result = staffMode ? await staffCheckIn(payload) : await checkIn(payload);
+
+      if (!result.session_id) {
+        setMessage("Check-in succeeded, but no session ID was returned.");
+        return;
+      }
+
+      setEmail("");
+      setStudentId("");
+      setMinutes("");
+      setCheckingBag("No");
+      setBagNumber("");
+
+      if (staffMode) {
+        // Stay on the form for the next student; the session is not this browser's.
+        setSuccess(
+          payload.bag_number
+            ? `Checked in student ${result.student_id}. Bag tag ${payload.bag_number} recorded.`
+            : `Checked in student ${result.student_id}.`,
+        );
+        return;
+      }
+
+      setCurrentStudentSession(result.session_id);
+      router.push("/student");
+    } catch (err) {
+      const errorText =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Could not register visit.";
+      setMessage(`Could not register visit: ${errorText}`);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -75,6 +126,30 @@ export default function StudentPortal() {
       }}
     >
       <div style={{ maxWidth: "460px", margin: "0 auto 0.75rem" }}>
+        {staffMode && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "0.75rem",
+              backgroundColor: "#fff3e1",
+              border: "1px solid #e2bcae",
+              borderRadius: "8px",
+              padding: "0.6rem 0.8rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.8rem",
+              color: "#5b2924",
+            }}
+          >
+            <span>
+              <strong>Staff override</strong> · opening-hours check skipped
+            </span>
+            <Link href="/dashboard" style={{ fontWeight: 600, color: "#9a441b", whiteSpace: "nowrap" }}>
+              ← Back to dashboard
+            </Link>
+          </div>
+        )}
         <div
           style={{
             display: "flex",
@@ -116,16 +191,10 @@ export default function StudentPortal() {
               color: "#9a441b",
             }}
           >
-            QR Check-In
+            {staffMode ? "Staff check-in" : "QR Check-In"}
           </p>
-          <h1
-            style={{
-              margin: "0 0 0.35rem",
-              fontSize: "1.35rem",
-              color: "#1f2937",
-            }}
-          >
-            Register your library visit
+          <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.35rem", color: "#1f2937" }}>
+            {staffMode ? "Register a student's visit" : "Register your library visit"}
           </h1>
           <p
             style={{
@@ -139,32 +208,6 @@ export default function StudentPortal() {
             approximate stay in minutes (15–480).
           </p>
         </div>
-
-        <label
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.3rem",
-            fontSize: "0.82rem",
-            fontWeight: 600,
-            color: "#374151",
-          }}
-        >
-          Full name
-          <input
-            type="text"
-            placeholder="Your name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            style={{
-              padding: "0.55rem 0.65rem",
-              borderRadius: "6px",
-              border: "1px solid #d6cec2",
-              fontWeight: 400,
-            }}
-          />
-        </label>
 
         <label
           style={{
@@ -285,7 +328,7 @@ export default function StudentPortal() {
           Zone
           <select
             value={zone}
-            onChange={(e) => setZone(e.target.value)}
+            onChange={(e) => setZone(e.target.value as Zone)}
             style={{
               padding: "0.55rem 0.65rem",
               borderRadius: "6px",
@@ -318,9 +361,7 @@ export default function StudentPortal() {
           <select
             id="checkingBag"
             value={checkingBag}
-            onChange={(e) =>
-              handleBagChoiceChange(e.target.value as "no" | "yes")
-            }
+            onChange={(e) => handleBagChoiceChange(e.target.value as "No" | "Yes")}
             style={{
               padding: "0.5rem 0.6rem",
               borderRadius: "6px",
@@ -328,11 +369,11 @@ export default function StudentPortal() {
               backgroundColor: "#ffffff",
             }}
           >
-            <option value="no">No — No bag declared</option>
-            <option value="yes">Yes</option>
+            <option value="No">No — No bag declared</option>
+            <option value="Yes">Yes</option>
           </select>
 
-          {checkingBag === "yes" && (
+          {checkingBag === "Yes" && (
             <input
               type="text"
               placeholder="Enter bag number"
@@ -350,18 +391,25 @@ export default function StudentPortal() {
 
         <button
           type="submit"
+          disabled={submitting}
           style={{
             padding: "0.65rem 1rem",
-            backgroundColor: "#9a441b",
+            backgroundColor: submitting ? "#b87a5c" : "#9a441b",
             color: "#ffffff",
             border: "none",
             borderRadius: "6px",
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: submitting ? "not-allowed" : "pointer",
           }}
         >
-          &rarr; Register visit
+          {submitting ? "Registering..." : "\u2192 Register visit"}
         </button>
+
+        {success && (
+          <p role="status" style={{ margin: 0, fontSize: "0.85rem", color: "#065f46" }}>
+            {success}
+          </p>
+        )}
 
         {message && (
           <p style={{ margin: 0, fontSize: "0.85rem", color: "#1f2937" }}>

@@ -1,15 +1,14 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
-import { supabase } from "../../lib/supabaseClient";
-import { Button } from "../../ui/button";
-import { Input } from "../../ui/input";
-import { Label } from "../../ui/label";
-import { useToast } from "../../hooks/use-toast";
-import { getCurrentProfile } from "../../lib/libraryApi";
+import {  useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Check, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import { Button } from '../../ui/button';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import { useToast } from '../../hooks/use-toast';
+import { getCurrentProfile } from '../../lib/libraryApi';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -18,7 +17,7 @@ export default function Login() {
   const router = useRouter();
   const { toast } = useToast();
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     let authenticated = false;
@@ -50,11 +49,8 @@ export default function Login() {
         if (signOutError) throw signOutError;
         authenticated = false;
       } else {
-        toast({
-          title: "Welcome back!",
-          description: "Successfully logged in.",
-        });
-        router.replace("/dashboard");
+        toast({ title: 'Welcome back!', description: 'Successfully logged in.' });
+        router.replace('/dashboard');
       }
       authenticated = false;
     } catch (caught) {
@@ -166,15 +162,6 @@ export default function Login() {
               )}
             </Button>
           </form>
-          <p className="text-center text-sm text-muted-foreground">
-            New staff?{" "}
-            <Link
-              href="/signup"
-              className="font-medium text-primary hover:underline"
-            >
-              Request an account
-            </Link>
-          </p>
         </section>
       </div>
     </div>

@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
@@ -18,6 +19,21 @@ class LibraryService:
         self.repository = repository
         self.settings = settings or get_settings()
 
+    def _validate_report_range(self, start: date, end: date):
+        today = datetime.now(ZoneInfo("America/Jamaica")).date()
+
+        if end < start:
+            raise HTTPException(
+                status_code=400,
+                detail="End date must be on or after start date.",
+            )
+
+        if end > today:
+            raise HTTPException(
+                status_code=400,
+                detail="Reports can only be generated for past or current dates.",
+            )
+
     def is_library_open(self, now_utc: datetime) -> bool:
         """True if check-in is allowed at this moment (SR-01: opening hours only)."""
         s = self.settings
@@ -28,10 +44,12 @@ class LibraryService:
         closes = time.fromisoformat(s.library_close_time)
         return opens <= local.time() < closes
 
-    def check_in(self, request: CheckInRequest, now: datetime | None = None):
+    def check_in(self, request: CheckInRequest, now: datetime | None = None, staff_override: bool = False):
+        """Register a visit. `staff_override` (staff route only) skips the
+        opening-hours rule; the one-active-session rule still applies."""
         now = now or datetime.now(timezone.utc)
 
-        if not self.is_library_open(now):
+        if not staff_override and not self.is_library_open(now):
             raise HTTPException(
                 status_code=403,
                 detail=(
@@ -207,6 +225,7 @@ class LibraryService:
         return self.repository.list_events(session_id)
 
     def hourly_occupancy(self, report_date: date):
+        self._validate_report_range(report_date, report_date)
         result = self.repository.rpc(
             "report_hourly_occupancy",
             {"p_date": report_date.isoformat()},
@@ -214,8 +233,7 @@ class LibraryService:
         return result.data or []
 
     def daily_totals(self, start: date, end: date):
-        if end < start:
-            raise HTTPException(status_code=400, detail="End date must be on or after start date.")
+        self._validate_report_range(start, end)
         result = self.repository.rpc(
             "report_daily_totals",
             {"p_start": start.isoformat(), "p_end": end.isoformat()},
@@ -223,8 +241,7 @@ class LibraryService:
         return result.data or []
 
     def average_stay(self, start: date, end: date):
-        if end < start:
-            raise HTTPException(status_code=400, detail="End date must be on or after start date.")
+        self._validate_report_range(start, end)
         result = self.repository.rpc(
             "report_average_stay",
             {"p_start": start.isoformat(), "p_end": end.isoformat()},
@@ -232,6 +249,16 @@ class LibraryService:
         rows = result.data or []
         row = rows[0] if rows else {"avg_stay_minutes": 0, "completed_visits": 0}
         return row
+
+    def total_checkouts(self, start: date, end: date):
+        self._validate_report_range(start, end)
+        result = self.repository.rpc(
+            "report_total_checkouts",
+            {"p_start": start.isoformat(), "p_end": end.isoformat()},
+        )
+        rows = result.data or []
+        row = rows[0] if rows else {"total_checkouts": 0}
+        return int(row["total_checkouts"])
 
     def save_daily_total(self, report_date: date):
         result = self.repository.rpc(

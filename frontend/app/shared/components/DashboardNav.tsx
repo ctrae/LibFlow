@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import IconButton from "./IconButton";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { UserPlus } from "lucide-react";
 import { Logo } from "./Logo";
 import { useLogout } from "../hooks/useAuth";
 import { camelCaseToLabel } from "../util/camelCaseToLabel";
@@ -81,6 +83,14 @@ export default function DashboardNav({
               tabs={tabs}
               currentTab={currentTab}
             />
+            <Link
+              href="/check-in?staff=1"
+              onClick={onCloseMobile}
+              className="flex items-center justify-center py-3 gap-2 font-medium cursor-pointer bg-white hover:text-primary"
+            >
+              <UserPlus className="h-5 w-5" />
+              <span>Override check-in</span>
+            </Link>
             <button
               onClick={() => handleLogout()}
               className={`flex bg-white hover:bg-secondary justify-center py-3 gap-2 font-medium cursor-pointer `}

@@ -75,9 +75,10 @@ export interface SessionEvent {
 }
 
 export interface HourlyOccupancyRow {
-  hour_of_day: number;
+  hour_label: string;
   students_present: number;
   check_ins: number;
+  check_outs: number;
 }
 
 export interface DailyTotalsRow {
@@ -193,6 +194,10 @@ async function request<T>(
 export const checkIn = (input: CheckInRequest) =>
   request<CheckInResponse>("/check-in", { method: "POST", body: input });
 
+/** Staff override check-in: allowed outside opening hours. Needs a staff sign-in. */
+export const staffCheckIn = (input: CheckInRequest) =>
+  request<CheckInResponse>("/staff/check-in", { method: "POST", body: input, staff: true });
+
 /** Check out using the session id returned at check-in. */
 export const checkOutBySession = (sessionId: string) =>
   request<CheckOutResponse>(`/check-out/${encodeURIComponent(sessionId)}`, { method: "POST" });
@@ -264,6 +269,12 @@ export const getDailyTotals = (start: string, end: string) =>
 export const getAverageStay = (start: string, end: string) =>
   request<AverageStay>(
     `/analytics/average-stay?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+    { staff: true }
+  );
+
+export const getTotalCheckouts = (start: string, end: string) =>
+  request<{ total_checkouts: number }>(
+    `/analytics/total-checkouts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
     { staff: true }
   );
 
