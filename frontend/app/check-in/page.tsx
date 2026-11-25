@@ -24,7 +24,7 @@ function CheckInForm() {
   // Staff mode needs BOTH a signed-in staff account and an explicit ?staff=1
   // (the dashboard link). Students, or a kiosk left signed in, get the plain form.
   // The backend checks the staff token again on /staff/check-in.
-  const staffMode = Boolean(profile) && searchParams.get("staff") === "1";
+  const staffMode = Boolean(profile) && searchParams?.get("staff") === "1";
   const [success, setSuccess] = useState("");
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");

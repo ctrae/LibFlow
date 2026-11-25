@@ -108,11 +108,11 @@ export function DashboardContent() {
   const [currentTabKey, setCurrentTabKey] = useState("Sessions");
 
   const currentTab: Tab =
-    tabs.find((t) => t.key === searchParams.get("tab")) || tabs[0];
+    tabs.find((t) => t.key === searchParams?.get("tab")) || tabs[0];
   const ActiveComponent = currentTab.component || Sessions;
 
   useEffect(() => {
-    const urlTab = searchParams.get("tab");
+    const urlTab = searchParams?.get("tab");
     let newTab = urlTab || storedTab || "Sessions";
 
     const tabExists = tabs.some((t) => t.key === newTab);
