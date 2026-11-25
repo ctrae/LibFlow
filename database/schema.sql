@@ -43,13 +43,31 @@ create table if not exists public.library_sessions (
 alter table public.library_sessions
   add column if not exists visit_reason text;
 
--- Append-only audit log (FR-06). Rows are written only by the trigger.
+-- Append-only audit log (FR-06).
+-- Rows are written only by the trigger.
 create table if not exists public.library_session_events (
   id            bigint generated always as identity primary key,
   session_id    uuid not null references public.library_sessions(id),
   event_status  text not null,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  event_type    text not null,
+  zone          text
 );
+
+-- Keep existing databases compatible with the current event schema.
+alter table public.library_session_events
+  add column if not exists event_type text;
+
+alter table public.library_session_events
+  add column if not exists zone text;
+
+-- Give any older event records a value before enforcing NOT NULL.
+update public.library_session_events
+set event_type = 'legacy'
+where event_type is null;
+
+alter table public.library_session_events
+  alter column event_type set not null;
 
 -- Staff allowlist. Only people listed here can read or change data, so
 -- it does not matter if someone signs up for an account.
@@ -125,12 +143,37 @@ set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' then
-    insert into public.library_session_events (session_id, event_status)
-    values (new.id, new.status);
-  elsif new.status <> old.status then
-    insert into public.library_session_events (session_id, event_status)
-    values (new.id, new.status);
+
+    insert into public.library_session_events (
+      session_id,
+      event_status,
+      event_type,
+      zone
+    )
+    values (
+      new.id,
+      new.status,
+      'session_created',
+      new.zone
+    );
+
+  elsif new.status is distinct from old.status then
+
+    insert into public.library_session_events (
+      session_id,
+      event_status,
+      event_type,
+      zone
+    )
+    values (
+      new.id,
+      new.status,
+      'status_changed',
+      new.zone
+    );
+
   end if;
+
   return new;
 end;
 $$;
@@ -296,38 +339,123 @@ revoke all on function public.expire_overdue_sessions() from public, anon, authe
 -- extension (Dashboard -> Database -> Extensions), then uncomment:
 -- select cron.schedule('expire-overdue-sessions', '* * * * *', 'select public.expire_overdue_sessions()');
 
--- 7c. Report: students present and check-ins for each hour of one day
---     (SR-03.3). "Present" = sessions overlapping that hour. A session
---     with no check-out counts until its allotted time ends.
-create or replace function public.report_hourly_occupancy(p_date date)
-returns table (hour_of_day int, students_present bigint, check_ins bigint)
+-- 7c. Report: hourly library activity for one day (FR-03).
+--     Uses the library's operating hours and reports occupancy,
+--     check-ins, and check-outs for each hourly interval.
+
+drop function if exists public.report_hourly_occupancy(date);
+
+create function public.report_hourly_occupancy(p_date date)
+returns table (
+    hour_label text,
+    students_present bigint,
+    check_ins bigint,
+    check_outs bigint
+)
 language sql
 stable
-security invoker
-set search_path = public
-as $$
-  with hours as (
-    select g as h,
-           (p_date::timestamp + make_interval(hours => g))     at time zone 'America/Jamaica' as hour_start,
-           (p_date::timestamp + make_interval(hours => g + 1)) at time zone 'America/Jamaica' as hour_end
-    from generate_series(0, 23) as g
-  ),
-  s as (
-    select check_in,
-           coalesce(check_out, check_in + make_interval(mins => allotted_minutes)) as ended_at
-    from public.library_sessions
-    where check_in < ((p_date + 1)::timestamp at time zone 'America/Jamaica')
-      and coalesce(check_out, check_in + make_interval(mins => allotted_minutes))
-            > (p_date::timestamp at time zone 'America/Jamaica')
-  )
-  select hours.h,
-         count(*) filter (where s.check_in < hours.hour_end and s.ended_at > hours.hour_start),
-         count(*) filter (where s.check_in >= hours.hour_start and s.check_in < hours.hour_end)
-  from hours
-  left join s on true
-  group by hours.h
-  order by hours.h;
-$$;
+set search_path to 'public'
+as $function$
+    with operating_hours as (
+        select
+            case
+                when extract(isodow from p_date) = 7
+                    then p_date::timestamp + time '12:00'
+                else p_date::timestamp + time '08:30'
+            end as opening_time,
+
+            case
+                when extract(isodow from p_date) = 7
+                    then p_date::timestamp + time '20:00'
+                else p_date::timestamp + time '18:00'
+            end as closing_time
+    ),
+
+    hours as (
+        select
+            h.start_local,
+            least(
+                h.start_local + interval '1 hour',
+                o.closing_time
+            ) as end_local,
+
+            h.start_local at time zone 'America/Jamaica'
+                as hour_start,
+
+            least(
+                h.start_local + interval '1 hour',
+                o.closing_time
+            ) at time zone 'America/Jamaica'
+                as hour_end
+
+        from operating_hours o
+
+        cross join lateral generate_series(
+            o.opening_time,
+            o.closing_time - interval '1 minute',
+            interval '1 hour'
+        ) as h(start_local)
+    ),
+
+    sessions as (
+        select
+            check_in,
+            check_out,
+
+            coalesce(
+                check_out,
+                check_in + make_interval(mins => allotted_minutes)
+            ) as ended_at
+
+        from public.library_sessions
+
+        where check_in < (
+            p_date::timestamp +
+            case
+                when extract(isodow from p_date) = 7
+                    then time '20:00'
+                else time '18:00'
+            end
+        ) at time zone 'America/Jamaica'
+
+        and coalesce(
+            check_out,
+            check_in + make_interval(mins => allotted_minutes)
+        ) > (
+            p_date::timestamp +
+            case
+                when extract(isodow from p_date) = 7
+                    then time '12:00'
+                else time '08:30'
+            end
+        ) at time zone 'America/Jamaica'
+    )
+
+    select
+        to_char(h.start_local, 'FMHH12:MI AM') as hour_label,
+
+        count(*) filter (
+            where s.check_in < h.hour_end
+              and s.ended_at > h.hour_start
+        ) as students_present,
+
+        count(*) filter (
+            where s.check_in >= h.hour_start
+              and s.check_in < h.hour_end
+        ) as check_ins,
+
+        count(*) filter (
+            where s.check_out >= h.hour_start
+              and s.check_out < h.hour_end
+        ) as check_outs
+
+    from hours h
+    left join sessions s on true
+
+    group by h.start_local, h.end_local, h.hour_start, h.hour_end
+
+    order by h.hour_start;
+$function$;
 
 -- 7d. Report: total visits and unique students for each day in a range
 --     (SR-03.4). Days with no visits show 0.
