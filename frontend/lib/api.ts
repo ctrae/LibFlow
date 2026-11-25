@@ -75,9 +75,10 @@ export interface SessionEvent {
 }
 
 export interface HourlyOccupancyRow {
-  hour_of_day: number;
+  hour_label: string;
   students_present: number;
   check_ins: number;
+  check_outs: number;
 }
 
 export interface DailyTotalsRow {
@@ -268,6 +269,12 @@ export const getDailyTotals = (start: string, end: string) =>
 export const getAverageStay = (start: string, end: string) =>
   request<AverageStay>(
     `/analytics/average-stay?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+    { staff: true }
+  );
+
+export const getTotalCheckouts = (start: string, end: string) =>
+  request<{ total_checkouts: number }>(
+    `/analytics/total-checkouts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
     { staff: true }
   );
 

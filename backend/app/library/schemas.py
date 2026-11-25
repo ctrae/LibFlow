@@ -108,9 +108,10 @@ class SessionEventResponse(BaseModel):
 
 
 class HourlyOccupancyRow(BaseModel):
-    hour_of_day: int
+    hour_label: str
     students_present: int
     check_ins: int
+    check_outs: int
 
 
 class DailyTotalsRow(BaseModel):

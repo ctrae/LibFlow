@@ -4,12 +4,14 @@ Run from the backend folder:  pytest
 No database is needed. The repository is replaced by an in-memory fake.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+
+from types import SimpleNamespace
 
 from app.core import auth
 from app.core.config import Settings
@@ -26,6 +28,39 @@ CLOSED_TIME = datetime(2026, 11, 26, 1, 0, tzinfo=timezone.utc)
 class FakeRepository:
     def __init__(self):
         self.sessions = []
+        self.rpc_calls = []
+
+    def rpc(self, function_name, params):
+        self.rpc_calls.append((function_name, params))
+
+        responses = {
+            "report_hourly_occupancy": [
+                {
+                    "hour_label": "8:30 AM",
+                    "students_present": 2,
+                    "check_ins": 1,
+                    "check_outs": 0,
+                }
+            ],
+            "report_daily_totals": [
+                {
+                    "visit_date": "2026-11-20",
+                    "total_visits": 1,
+                    "unique_students": 1,
+                }
+            ],
+            "report_average_stay": [
+                {
+                    "avg_stay_minutes": 5.1,
+                    "completed_visits": 1,
+                }
+            ],
+            "report_total_checkouts": [
+                {"total_checkouts": 1}
+            ],
+        }
+
+        return SimpleNamespace(data=responses[function_name])
 
     def find_active_session(self, student_id):
         return next(
@@ -163,6 +198,7 @@ STAFF_ROUTES = [
     ("get", "/library/analytics/hourly?date=2026-11-25"),
     ("get", "/library/analytics/daily?start=2026-11-01&end=2026-11-25"),
     ("get", "/library/analytics/average-stay?start=2026-11-01&end=2026-11-25"),
+    ("get", "/library/analytics/total-checkouts?start=2026-11-01&end=2026-11-25"),
     ("post", "/library/daily-totals/2026-11-25"),
     ("get", "/library/staff"),
     ("post", "/library/staff"),
@@ -199,6 +235,65 @@ def test_staff_member_can_read_occupancy(client, monkeypatch):
     assert response.status_code == 200
     assert response.json() == {"occupancy": 0}
 
+def test_library_staff_can_read_analytics_reports(client, monkeypatch):
+    app.dependency_overrides[auth.get_current_user_id] = lambda: "u1"
+    monkeypatch.setattr(auth, "_load_staff", lambda user_id: {"role": "library_staff"})
+
+    svc = make_service()
+    app.dependency_overrides[get_service] = lambda: svc
+    headers = {"Authorization": "Bearer t"}
+
+    hourly = client.get(
+        "/library/analytics/hourly?date=2026-11-20",
+        headers=headers,
+    )
+    daily = client.get(
+        "/library/analytics/daily?start=2026-11-17&end=2026-11-23",
+        headers=headers,
+    )
+    average = client.get(
+        "/library/analytics/average-stay?start=2026-11-17&end=2026-11-23",
+        headers=headers,
+    )
+    checkouts = client.get(
+        "/library/analytics/total-checkouts?start=2026-11-17&end=2026-11-23",
+        headers=headers,
+    )
+
+    assert hourly.status_code == 200
+    assert hourly.json() == [
+        {
+            "hour_label": "8:30 AM",
+            "students_present": 2,
+            "check_ins": 1,
+            "check_outs": 0,
+        }
+    ]
+
+    assert daily.status_code == 200
+    assert daily.json() == [
+        {
+            "visit_date": "2026-11-20",
+            "total_visits": 1,
+            "unique_students": 1,
+        }
+    ]
+
+    assert average.status_code == 200
+    assert average.json() == {
+        "avg_stay_minutes": 5.1,
+        "completed_visits": 1,
+    }
+
+    assert checkouts.status_code == 200
+    assert checkouts.json() == {"total_checkouts": 1}
+
+    assert svc.repository.rpc_calls == [
+        ("report_hourly_occupancy", {"p_date": "2026-11-20"}),
+        ("report_daily_totals", {"p_start": "2026-11-17", "p_end": "2026-11-23"}),
+        ("report_average_stay", {"p_start": "2026-11-17", "p_end": "2026-11-23"}),
+        ("report_total_checkouts", {"p_start": "2026-11-17", "p_end": "2026-11-23"}),
+    ]
 
 def test_library_staff_cannot_manage_staff_list(client, monkeypatch):
     app.dependency_overrides[auth.get_current_user_id] = lambda: "u1"
@@ -267,3 +362,30 @@ def test_bag_list_matches_api_shape(client, monkeypatch):
     assert response.status_code == 200
     assert response.json()[0]["session_id"] == "s1"
     assert response.json()[0]["bag_number"] == "B-12"
+
+# ------------------------- analytics date validation -------------------------
+
+
+def test_report_range_accepts_past_dates():
+    svc = make_service()
+    svc._validate_report_range(date(2026, 11, 1), date(2026, 11, 20))
+
+
+def test_report_range_rejects_future_dates():
+    svc = make_service()
+
+    with pytest.raises(HTTPException) as exc:
+        svc._validate_report_range(date(2099, 1, 1), date(2099, 1, 1))
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Reports can only be generated for past or current dates."
+
+
+def test_report_range_rejects_end_before_start():
+    svc = make_service()
+
+    with pytest.raises(HTTPException) as exc:
+        svc._validate_report_range(date(2026, 11, 20), date(2026, 11, 1))
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "End date must be on or after start date."

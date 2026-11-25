@@ -164,6 +164,14 @@ def average_stay(
     return service.average_stay(start, end)
 
 
+@router.get("/analytics/total-checkouts", dependencies=[Depends(require_staff)])
+def total_checkouts(
+    start: date,
+    end: date,
+    service: LibraryService = Depends(get_service),
+):
+    return {"total_checkouts": service.total_checkouts(start, end)}
+
 # ------------------------- Daily Visit Totals -------------------------
 
 
