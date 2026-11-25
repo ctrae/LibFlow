@@ -9,6 +9,7 @@ use these dependencies.
 """
 
 from fastapi import Depends, Header, HTTPException
+from supabase_auth.errors import AuthApiError
 
 from app.database.supabase import get_supabase
 from app.library.repository import LibraryRepository
@@ -19,6 +20,13 @@ def _unauthorized(detail: str) -> HTTPException:
         status_code=401,
         detail=detail,
         headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _auth_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail="Could not verify your sign-in right now. Please try again in a moment.",
     )
 
 
@@ -35,8 +43,16 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> str
     try:
         response = get_supabase().auth.get_user(token)
         user = response.user if response else None
-    except Exception:
-        user = None
+    except AuthApiError as exc:
+        # Supabase answered and rejected the token (expired, revoked, malformed).
+        if exc.status is not None and exc.status < 500:
+            user = None
+        else:
+            raise _auth_unavailable() from exc
+    except Exception as exc:
+        # Network error, timeout, rate limit or Supabase outage: the token may be
+        # fine, so don't tell the user they were signed out.
+        raise _auth_unavailable() from exc
 
     if user is None:
         raise _unauthorized("Your session has expired. Please sign in again.")

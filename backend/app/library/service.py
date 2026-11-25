@@ -1,3 +1,4 @@
+import secrets
 from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException
@@ -28,10 +29,12 @@ class LibraryService:
         closes = time.fromisoformat(s.library_close_time)
         return opens <= local.time() < closes
 
-    def check_in(self, request: CheckInRequest, now: datetime | None = None):
+    def check_in(self, request: CheckInRequest, now: datetime | None = None, staff_override: bool = False):
+        """Register a visit. `staff_override` (staff route only) skips the
+        opening-hours rule; the one-active-session and bag rules still apply."""
         now = now or datetime.now(timezone.utc)
 
-        if not self.is_library_open(now):
+        if not staff_override and not self.is_library_open(now):
             raise HTTPException(
                 status_code=403,
                 detail=(
@@ -47,26 +50,37 @@ class LibraryService:
             )
 
         expires_at = now + timedelta(minutes=request.allotted_minutes)
+        # Bag check is for the Main section only; Basement students keep their bags.
+        wants_bag = request.zone == "Main" and (request.checking_bag or bool(request.bag_number))
+        tried: set[str] = set()
 
-        try:
-            session = self.repository.create_session(
-                {
-                    "student_id": request.student_id,
-                    "student_email": str(request.student_email).lower(),
-                    "check_in": now.isoformat(),
-                    "allotted_minutes": request.allotted_minutes,
-                    "zone": request.zone,
-                    "bag_number": request.bag_number,
-                    "visit_reason": request.visit_reason,
-                    "status": "active",
-                }
-            )
-        except Exception as exc:
-            # The database unique indexes remain the final race-condition guard.
-            raise HTTPException(
-                status_code=409,
-                detail=f"Could not create session. It may conflict with an active session or bag: {exc}",
-            ) from exc
+        # Two students checking in at once can draw the same free bag; the
+        # database's unique index rejects the second, so draw again.
+        for attempt in range(3):
+            bag_number = self.pick_free_bag_number(exclude=tried) if wants_bag else None
+            try:
+                session = self.repository.create_session(
+                    {
+                        "student_id": request.student_id,
+                        "student_email": str(request.student_email).lower(),
+                        "check_in": now.isoformat(),
+                        "allotted_minutes": request.allotted_minutes,
+                        "zone": request.zone,
+                        "bag_number": bag_number,
+                        "visit_reason": request.visit_reason,
+                        "status": "active",
+                    }
+                )
+                break
+            except Exception as exc:
+                if bag_number and attempt < 2:
+                    tried.add(bag_number)
+                    continue
+                # The database unique indexes remain the final race-condition guard.
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Could not create session. It may conflict with an active session or bag: {exc}",
+                ) from exc
 
         return {
             "session_id": session["id"],
@@ -74,7 +88,26 @@ class LibraryService:
             "check_in": session["check_in"],
             "expires_at": expires_at,
             "status": "active",
+            "bag_number": session.get("bag_number"),
         }
+
+    def pick_free_bag_number(self, exclude: set[str] = frozenset()) -> str:
+        """A random bag tag (BAG-001 … BAG-<bag_count>) not held by an active session."""
+        held = {b["bag_number"] for b in self.repository.list_active_bags()} | set(exclude)
+        free = [
+            tag
+            for n in range(1, self.settings.bag_count + 1)
+            if (tag := f"BAG-{n:03d}") not in held
+        ]
+        if not free:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "All bag numbers for the Main section are in use. "
+                    "Please check in to the Basement instead."
+                ),
+            )
+        return secrets.choice(free)
 
     def checkout(self, session_id: str):
         session = self.repository.get_session(session_id)
@@ -118,7 +151,6 @@ class LibraryService:
                 detail="No matching active session was found.",
             )
 
-        session = self.repository.find_active_session(request.student_id)
         # The RPC has closed the active session, so fetch recent rows instead.
         recent = self.repository.get_student_active_or_recent(request.student_id, limit=1)
         if not recent:
@@ -182,6 +214,8 @@ class LibraryService:
             raise HTTPException(status_code=404, detail="Session not found.")
         if session["status"] != "active":
             raise HTTPException(status_code=409, detail="Only active sessions can have a bag assigned.")
+        if bag_number and session.get("zone") == "Basement":
+            raise HTTPException(status_code=409, detail="Basement students keep their bags; bag check is for the Main section only.")
 
         try:
             updated = self.repository.update_session(

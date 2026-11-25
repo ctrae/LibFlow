@@ -16,6 +16,7 @@ from app.library.schemas import (
     CheckOutResponse,
     DailyTotalsRow,
     HourlyOccupancyRow,
+    MeResponse,
     OccupancyResponse,
     SaveDailyTotalResponse,
     SessionEventResponse,
@@ -46,6 +47,12 @@ def get_service() -> LibraryService:
 @router.post("/check-in", response_model=CheckInResponse, status_code=201)
 def check_in(request: CheckInRequest, service: LibraryService = Depends(get_service)):
     return service.check_in(request)
+
+
+@router.post("/staff/check-in", response_model=CheckInResponse, status_code=201, dependencies=[Depends(require_staff)])
+def staff_check_in(request: CheckInRequest, service: LibraryService = Depends(get_service)):
+    """Staff override check-in: same as /check-in but allowed outside opening hours."""
+    return service.check_in(request, staff_override=True)
 
 
 @router.post("/check-out/{session_id}", response_model=CheckOutResponse)
@@ -170,6 +177,14 @@ def save_daily_total(
 
 
 # ------------------------------- Staff --------------------------------
+
+
+@router.get("/me", response_model=MeResponse)
+def me(staff: dict = Depends(require_staff)):
+    """The signed-in staff member. 401 if not signed in, 403 if not staff."""
+    return staff
+
+
 # Head librarians only. Sign in as a head librarian to manage the staff list.
 
 

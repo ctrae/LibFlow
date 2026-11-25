@@ -191,6 +191,7 @@ http://localhost:8000
 
 | Method | Endpoint | Purpose |
 |---|---|---|
+| POST | `/library/staff/check-in` | Staff override check-in (skips the opening-hours rule; duplicate/bag rules still apply) |
 | PATCH | `/library/sessions/{session_id}/status` | Change active/exited/expired status |
 | POST | `/library/sessions/expire-overdue` | Run database expiry function |
 

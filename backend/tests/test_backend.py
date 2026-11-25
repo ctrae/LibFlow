@@ -10,6 +10,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from supabase_auth.errors import AuthApiError
 
 from app.core import auth
 from app.core.config import Settings
@@ -140,6 +141,19 @@ def test_check_in_allowed_outside_hours_when_switch_is_off():
     assert svc.check_in(valid_request(), now=CLOSED_TIME)["status"] == "active"
 
 
+def test_staff_override_allows_check_in_outside_hours():
+    svc = make_service()
+    assert svc.check_in(valid_request(), now=CLOSED_TIME, staff_override=True)["status"] == "active"
+
+
+def test_staff_override_still_blocks_duplicate_session():
+    svc = make_service()
+    svc.check_in(valid_request(), now=OPEN_TIME)
+    with pytest.raises(HTTPException) as err:
+        svc.check_in(valid_request(), now=CLOSED_TIME, staff_override=True)
+    assert err.value.status_code == 409
+
+
 def test_opening_boundaries():
     svc = make_service()
     # 08:30 local = 13:30 UTC (open); 08:29 = 13:29 (closed); 18:00 = 23:00 (closed)
@@ -164,6 +178,8 @@ STAFF_ROUTES = [
     ("get", "/library/analytics/daily?start=2026-11-01&end=2026-11-25"),
     ("get", "/library/analytics/average-stay?start=2026-11-01&end=2026-11-25"),
     ("post", "/library/daily-totals/2026-11-25"),
+    ("get", "/library/me"),
+    ("post", "/library/staff/check-in"),
     ("get", "/library/staff"),
     ("post", "/library/staff"),
     ("delete", "/library/staff/some-user"),
@@ -200,6 +216,28 @@ def test_staff_member_can_read_occupancy(client, monkeypatch):
     assert response.json() == {"occupancy": 0}
 
 
+def test_me_returns_staff_role(client, monkeypatch):
+    app.dependency_overrides[auth.get_current_user_id] = lambda: "u1"
+    monkeypatch.setattr(auth, "_load_staff", lambda user_id: {"role": "head_librarian"})
+    response = client.get("/library/me", headers={"Authorization": "Bearer t"})
+    assert response.status_code == 200
+    assert response.json() == {"user_id": "u1", "role": "head_librarian"}
+
+
+def test_staff_check_in_route_ignores_opening_hours(client, monkeypatch):
+    app.dependency_overrides[auth.get_current_user_id] = lambda: "u1"
+    monkeypatch.setattr(auth, "_load_staff", lambda user_id: {"role": "library_staff"})
+    svc = make_service()
+    # Closed all day, so only the override can let this through.
+    svc.is_library_open = lambda now: False
+    app.dependency_overrides[get_service] = lambda: svc
+    body = {"student_id": "620123456", "student_email": "a.b@mymona.uwi.edu", "allotted_minutes": 60}
+    assert client.post("/library/check-in", json=body).status_code == 403
+    response = client.post("/library/staff/check-in", json=body, headers={"Authorization": "Bearer t"})
+    assert response.status_code == 201
+    assert response.json()["status"] == "active"
+
+
 def test_library_staff_cannot_manage_staff_list(client, monkeypatch):
     app.dependency_overrides[auth.get_current_user_id] = lambda: "u1"
     monkeypatch.setattr(auth, "_load_staff", lambda user_id: {"role": "library_staff"})
@@ -214,17 +252,32 @@ def test_head_librarian_passes_head_check(client, monkeypatch):
     assert auth.require_head_librarian(staff)["role"] == "head_librarian"
 
 
-def test_bad_token_is_rejected(client, monkeypatch):
+def _fake_supabase_auth(monkeypatch, error):
     class FakeAuth:
         def get_user(self, token):
-            raise RuntimeError("invalid jwt")
+            raise error
 
     class FakeClient:
         auth = FakeAuth()
 
     monkeypatch.setattr(auth, "get_supabase", lambda: FakeClient())
+
+
+def test_bad_token_is_rejected(client, monkeypatch):
+    # What Supabase raises for an expired or malformed token.
+    _fake_supabase_auth(monkeypatch, AuthApiError("invalid JWT", 403, "bad_jwt"))
     response = client.get("/library/occupancy", headers={"Authorization": "Bearer nope"})
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "error",
+    [RuntimeError("connection reset"), AuthApiError("upstream down", 502, None)],
+)
+def test_auth_outage_is_not_reported_as_sign_out(client, monkeypatch, error):
+    _fake_supabase_auth(monkeypatch, error)
+    response = client.get("/library/occupancy", headers={"Authorization": "Bearer t"})
+    assert response.status_code == 503
 
 
 def test_malformed_authorization_header(client):
@@ -253,17 +306,98 @@ def test_health_is_public(client):
     assert client.get("/health").status_code == 200
 
 
+# ------------------------------ reports ------------------------------
+
+
+def test_hourly_report_matches_database_function(client, monkeypatch):
+    # Shape returned by public.report_hourly_occupancy in the live database.
+    row = {"hour_label": "8:30 AM", "students_present": 2, "check_ins": 1, "check_outs": 0}
+
+    class FakeResult:
+        data = [row]
+
+    svc = make_service()
+    svc.repository.rpc = lambda name, params=None: FakeResult()
+    app.dependency_overrides[auth.get_current_user_id] = lambda: "u1"
+    monkeypatch.setattr(auth, "_load_staff", lambda user_id: {"role": "library_staff"})
+    app.dependency_overrides[get_service] = lambda: svc
+    response = client.get("/library/analytics/hourly?date=2026-11-25", headers={"Authorization": "Bearer t"})
+    assert response.status_code == 200
+    assert response.json() == [row]
+
+
 # ------------------------------ bag list ------------------------------
 
 
 def test_bag_list_matches_api_shape(client, monkeypatch):
     # Regression: the query returns `id`, the API response requires `session_id`.
     svc = make_service(enforce_opening_hours=False)
-    svc.check_in(valid_request(bag_number="B-12"), now=OPEN_TIME)
+    bag = svc.check_in(valid_request(checking_bag=True), now=OPEN_TIME)["bag_number"]
     app.dependency_overrides[auth.get_current_user_id] = lambda: "u1"
     monkeypatch.setattr(auth, "_load_staff", lambda user_id: {"role": "library_staff"})
     app.dependency_overrides[get_service] = lambda: svc
     response = client.get("/library/bags", headers={"Authorization": "Bearer t"})
     assert response.status_code == 200
     assert response.json()[0]["session_id"] == "s1"
-    assert response.json()[0]["bag_number"] == "B-12"
+    assert response.json()[0]["bag_number"] == bag
+
+
+# ------------------------------ bag assignment ------------------------------
+
+
+def test_no_bag_means_no_bag_number():
+    svc = make_service()
+    assert svc.check_in(valid_request(), now=OPEN_TIME)["bag_number"] is None
+
+
+def test_checking_bag_assigns_a_number_from_the_pool():
+    svc = make_service(bag_count=50)
+    bag = svc.check_in(valid_request(checking_bag=True), now=OPEN_TIME)["bag_number"]
+    assert bag in {f"BAG-{n:03d}" for n in range(1, 51)}
+    assert svc.repository.sessions[0]["bag_number"] == bag
+
+
+def test_basement_check_in_never_gets_a_bag_even_when_pool_is_full():
+    svc = make_service(bag_count=1)
+    svc.check_in(valid_request(student_id="620000001", checking_bag=True), now=OPEN_TIME)
+    result = svc.check_in(
+        valid_request(student_id="620000002", zone="Basement", checking_bag=True), now=OPEN_TIME
+    )
+    assert result["status"] == "active"
+    assert result["bag_number"] is None
+
+
+def test_typed_bag_number_from_old_clients_is_replaced():
+    svc = make_service()
+    bag = svc.check_in(valid_request(bag_number="B-12"), now=OPEN_TIME)["bag_number"]
+    assert bag.startswith("BAG-") and bag != "B-12"
+
+
+def test_held_bags_are_never_reused_and_full_pool_is_rejected():
+    svc = make_service(bag_count=3)
+    bags = {
+        svc.check_in(valid_request(student_id=f"62000000{i}", checking_bag=True), now=OPEN_TIME)["bag_number"]
+        for i in range(3)
+    }
+    assert bags == {"BAG-001", "BAG-002", "BAG-003"}
+    with pytest.raises(HTTPException) as err:
+        svc.check_in(valid_request(student_id="620000009", checking_bag=True), now=OPEN_TIME)
+    assert err.value.status_code == 409
+    assert "check in to the Basement" in err.value.detail
+
+
+def test_bag_race_draws_again():
+    svc = make_service(bag_count=2)
+    real_create = svc.repository.create_session
+    calls = []
+
+    def flaky_create(payload):
+        calls.append(payload["bag_number"])
+        if len(calls) == 1:
+            raise RuntimeError("duplicate key value violates unique constraint one_active_bag_number")
+        return real_create(payload)
+
+    svc.repository.create_session = flaky_create
+    result = svc.check_in(valid_request(checking_bag=True), now=OPEN_TIME)
+    assert len(calls) == 2 and calls[0] != calls[1]
+    assert result["bag_number"] == calls[1]

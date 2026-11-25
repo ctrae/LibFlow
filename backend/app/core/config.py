@@ -17,9 +17,13 @@ class Settings(BaseSettings):
     # daylight saving, so a fixed UTC offset is enough.
     # Set ENFORCE_OPENING_HOURS=false in .env to test or demo outside hours.
     enforce_opening_hours: bool = True
-    library_open_time: str = "08:30"
-    library_close_time: str = "18:00"
+    library_open_time: str = "08:00"
+    library_close_time: str = "18:30"
     library_utc_offset_hours: int = -5
+
+    # Bag tags BAG-001 … BAG-<bag_count>. A student checking a bag is given a
+    # random free one at check-in.
+    bag_count: int = 50
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -16,6 +16,10 @@ class CheckInRequest(BaseModel):
     student_email: EmailStr
     allotted_minutes: int = Field(ge=15, le=480)
     zone: Zone = "Main"
+    # True = the student is leaving a bag; the server picks a free bag number.
+    checking_bag: bool = False
+    # Deprecated: older clients sent a typed number. Any value is treated as
+    # checking_bag=True and the number itself is ignored.
     bag_number: str | None = Field(default=None, max_length=50)
     visit_reason: str | None = Field(default=None, max_length=100)
 
@@ -41,6 +45,7 @@ class CheckInResponse(BaseModel):
     check_in: datetime
     expires_at: datetime
     status: Literal["active"]
+    bag_number: str | None = None
 
 
 class CheckOutRequest(BaseModel):
@@ -103,14 +108,19 @@ class BagResponse(BaseModel):
 class SessionEventResponse(BaseModel):
     id: int
     session_id: str
-    event_status: SessionStatus
+    event_status: SessionStatus | None = None
+    event_type: str | None = None  # session_created, status_changed, ...
+    zone: str | None = None
     created_at: datetime
 
 
 class HourlyOccupancyRow(BaseModel):
-    hour_of_day: int
+    """One opening-hours slot from public.report_hourly_occupancy."""
+
+    hour_label: str  # e.g. "8:30 AM"
     students_present: int
     check_ins: int
+    check_outs: int
 
 
 class DailyTotalsRow(BaseModel):
@@ -136,6 +146,11 @@ class StaffResponse(BaseModel):
     user_id: str
     role: StaffRole
     created_at: datetime
+
+
+class MeResponse(BaseModel):
+    user_id: str
+    role: StaffRole
 
 
 class StaffCreateRequest(BaseModel):

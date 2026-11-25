@@ -1,33 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ApiError, checkIn, type Zone } from "@/lib/api";
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ApiError, checkIn, staffCheckIn, type Zone } from "@/lib/api";
 import { setCurrentStudentSession } from "@/lib/studentApi";
+import { useAuth } from "@/hooks/useAuth";
 
 const QUICK_MINUTES = [15, 30, 45, 60];
 
 export default function CheckInPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckInForm />
+    </Suspense>
+  );
+}
+
+function CheckInForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { profile } = useAuth();
+  // Staff mode needs BOTH a signed-in staff account and an explicit ?staff=1
+  // (the dashboard link). Students, or a kiosk left signed in, get the plain form.
+  // The backend checks the staff token again on /staff/check-in.
+  const staffMode = Boolean(profile) && searchParams.get("staff") === "1";
+  const [success, setSuccess] = useState("");
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
   const [minutes, setMinutes] = useState("");
   const [zone, setZone] = useState<Zone>("Main");
   const [checkingBag, setCheckingBag] = useState<"No" | "Yes">("No");
-  const [bagNumber, setBagNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-
-  function handleBagChoiceChange(value: "No" | "Yes") {
-    setCheckingBag(value);
-    if (value === "No") {
-      setBagNumber("");
-    }
-  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setMessage("");
+    setSuccess("");
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanId = studentId.trim();
@@ -51,27 +61,36 @@ export default function CheckInPage() {
     setSubmitting(true);
 
     try {
-      const result = await checkIn({
+      const payload = {
         student_id: cleanId,
         student_email: cleanEmail,
         allotted_minutes: stayMinutes,
         zone,
-        bag_number: checkingBag === "Yes" && bagNumber.trim() ? bagNumber.trim() : null,
-      });
+        checking_bag: checkingBag === "Yes",
+      };
+      const result = staffMode ? await staffCheckIn(payload) : await checkIn(payload);
 
       if (!result.session_id) {
         setMessage("Check-in succeeded, but no session ID was returned.");
         return;
       }
 
-      setCurrentStudentSession(result.session_id);
-
       setEmail("");
       setStudentId("");
       setMinutes("");
       setCheckingBag("No");
-      setBagNumber("");
 
+      if (staffMode) {
+        // Stay on the form for the next student; the session is not this browser's.
+        setSuccess(
+          result.bag_number
+            ? `Checked in student ${result.student_id}. Give them bag tag ${result.bag_number}.`
+            : `Checked in student ${result.student_id}.`,
+        );
+        return;
+      }
+
+      setCurrentStudentSession(result.session_id);
       router.push("/student");
     } catch (err) {
       const errorText =
@@ -94,6 +113,30 @@ export default function CheckInPage() {
       }}
     >
       <div style={{ maxWidth: "460px", margin: "0 auto 0.75rem" }}>
+        {staffMode && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "0.75rem",
+              backgroundColor: "#fff3e1",
+              border: "1px solid #e2bcae",
+              borderRadius: "8px",
+              padding: "0.6rem 0.8rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.8rem",
+              color: "#5b2924",
+            }}
+          >
+            <span>
+              <strong>Staff override</strong> · opening-hours check skipped
+            </span>
+            <Link href="/dashboard" style={{ fontWeight: 600, color: "#9a441b", whiteSpace: "nowrap" }}>
+              ← Back to dashboard
+            </Link>
+          </div>
+        )}
         <div
           style={{
             display: "flex",
@@ -135,10 +178,10 @@ export default function CheckInPage() {
               color: "#9a441b",
             }}
           >
-            QR Check-In
+            {staffMode ? "Staff check-in" : "QR Check-In"}
           </p>
           <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.35rem", color: "#1f2937" }}>
-            Register your library visit
+            {staffMode ? "Register a student's visit" : "Register your library visit"}
           </h1>
           <p style={{ margin: 0, fontSize: "0.82rem", color: "#6b7280", lineHeight: 1.4 }}>
             Complete this form after scanning the library QR code. Enter your approximate
@@ -255,7 +298,12 @@ export default function CheckInPage() {
           Zone
           <select
             value={zone}
-            onChange={(e) => setZone(e.target.value as Zone)}
+            onChange={(e) => {
+              const next = e.target.value as Zone;
+              setZone(next);
+              // Bag check is Main only; Basement students keep their bags.
+              if (next === "Basement") setCheckingBag("No");
+            }}
             style={{
               padding: "0.55rem 0.65rem",
               borderRadius: "6px",
@@ -268,6 +316,11 @@ export default function CheckInPage() {
           </select>
         </label>
 
+        {zone === "Basement" ? (
+          <p style={{ margin: 0, fontSize: "0.78rem", color: "#6b7280" }}>
+            No bag check in the Basement. You can keep your bag with you.
+          </p>
+        ) : (
         <div
           style={{
             backgroundColor: "#faf7f2",
@@ -288,7 +341,7 @@ export default function CheckInPage() {
           <select
             id="checkingBag"
             value={checkingBag}
-            onChange={(e) => handleBagChoiceChange(e.target.value as "No" | "Yes")}
+            onChange={(e) => setCheckingBag(e.target.value as "No" | "Yes")}
             style={{
               padding: "0.5rem 0.6rem",
               borderRadius: "6px",
@@ -301,20 +354,12 @@ export default function CheckInPage() {
           </select>
 
           {checkingBag === "Yes" && (
-            <input
-              type="text"
-              placeholder="Enter bag number"
-              value={bagNumber}
-              onChange={(e) => setBagNumber(e.target.value)}
-              style={{
-                padding: "0.5rem 0.6rem",
-                borderRadius: "6px",
-                border: "1px solid #d6cec2",
-                backgroundColor: "#ffffff",
-              }}
-            />
+            <p style={{ margin: 0, fontSize: "0.78rem", color: "#6b7280" }}>
+              A bag number will be assigned when you register. It will show on your session page.
+            </p>
           )}
         </div>
+        )}
 
         <button
           type="submit"
@@ -331,6 +376,12 @@ export default function CheckInPage() {
         >
           {submitting ? "Registering..." : "\u2192 Register visit"}
         </button>
+
+        {success && (
+          <p role="status" style={{ margin: 0, fontSize: "0.85rem", color: "#065f46" }}>
+            {success}
+          </p>
+        )}
 
         {message && (
           <p style={{ margin: 0, fontSize: "0.85rem", color: "#1f2937" }}>{message}</p>

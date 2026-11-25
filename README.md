@@ -98,6 +98,12 @@ Supabase project using the Supabase SQL Editor. Coordinate with the team before
 changing a shared database. The script creates the tables, constraints,
 policies, triggers, and functions used by the backend.
 
+`database/schema.sql` is the source of truth. The root `schemas.sql` is the
+older bag-check schema and should not be applied. If it was applied to your
+project (check-in fails with `null value in column "user_id"`), run
+[`database/migrations/001_align_live_db_with_backend.sql`](database/migrations/001_align_live_db_with_backend.sql)
+once in the SQL Editor.
+
 ## Frontend setup
 
 From the repository root:
@@ -130,8 +136,9 @@ The frontend is available at <http://localhost:3000>. Current routes include:
 
 - `/check-in` — student check-in form
 - `/student` — student session page
-- `/live-sessions` — occupancy page
-- `/login` — staff login
+- `/login` — staff login (must be listed in `public.staff`)
+- `/dashboard` — staff console (tabs are still UI mockups)
+- `/bag-check` — staff bag handoff list
 
 Available frontend checks:
 

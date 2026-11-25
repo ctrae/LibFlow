@@ -9,7 +9,7 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { useToast } from '../../hooks/use-toast';
-import { getCurrentProfile } from '../../lib/libraryApi';
+import { ApiError, getMe } from '../../lib/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -31,23 +31,21 @@ export default function Login() {
       if (error) throw error;
       authenticated = true;
 
-      const authUserId = data.user?.id;
-      if (!authUserId) throw new Error('Sign-in did not return a user.');
-      const profile = await getCurrentProfile(authUserId);
-      if (profile.user_type === 'Student') {
-        throw new Error('No staff profile is linked to this account. Request staff access first.');
+      if (!data.user?.id) throw new Error('Sign-in did not return a user.');
+
+      // The backend checks the staff allowlist (public.staff).
+      try {
+        await getMe();
+      } catch (caught) {
+        if (caught instanceof ApiError && caught.status === 403) {
+          throw new Error('This account is not on the staff list. Ask the Head Librarian for access.');
+        }
+        throw caught;
       }
 
-      if (!profile.is_approved) {
-        toast({ title: 'Approval pending', description: 'Your account needs Head Librarian approval before staff access is enabled.' });
-        const { error: signOutError } = await supabase.auth.signOut();
-        if (signOutError) throw signOutError;
-        authenticated = false;
-      } else {
-        toast({ title: 'Welcome back!', description: 'Successfully logged in.' });
-        router.replace('/dashboard');
-      }
+      toast({ title: 'Welcome back!', description: 'Successfully logged in.' });
       authenticated = false;
+      router.replace('/dashboard');
     } catch (caught) {
       if (authenticated) {
         const { error: signOutError } = await supabase.auth.signOut();

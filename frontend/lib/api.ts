@@ -28,7 +28,8 @@ export interface CheckInRequest {
   student_email: string;
   allotted_minutes: number; // 15 to 480
   zone?: Zone;
-  bag_number?: string | null;
+  /** True if the student is leaving a bag; the server assigns a free bag number. */
+  checking_bag?: boolean;
   visit_reason?: string | null;
 }
 
@@ -38,6 +39,8 @@ export interface CheckInResponse {
   check_in: string;
   expires_at: string;
   status: "active";
+  /** Bag tag the student was given, or null if they did not check a bag. */
+  bag_number: string | null;
 }
 
 export interface CheckOutResponse {
@@ -70,14 +73,18 @@ export interface Bag {
 export interface SessionEvent {
   id: number;
   session_id: string;
-  event_status: SessionStatus;
+  event_status: SessionStatus | null;
+  event_type: string | null; // session_created, status_changed, ...
+  zone: string | null;
   created_at: string;
 }
 
+/** One opening-hours slot, e.g. { hour_label: "8:30 AM", ... }. */
 export interface HourlyOccupancyRow {
-  hour_of_day: number;
+  hour_label: string;
   students_present: number;
   check_ins: number;
+  check_outs: number;
 }
 
 export interface DailyTotalsRow {
@@ -149,26 +156,20 @@ function friendlyMessage(status: number, body: unknown): string {
 // Core request helper
 // ---------------------------------------------------------------------------
 
-async function staffToken(): Promise<string | null> {
+async function staffToken(forceRefresh = false): Promise<string | null> {
+  if (forceRefresh) {
+    const { data } = await supabase.auth.refreshSession();
+    return data.session?.access_token ?? null;
+  }
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
 
-async function request<T>(
-  path: string,
-  options: { method?: string; body?: unknown; staff?: boolean } = {}
-): Promise<T> {
+async function send(path: string, options: { method?: string; body?: unknown }, token: string | null) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-
-  if (options.staff) {
-    const token = await staffToken();
-    if (!token) throw new ApiError("Please sign in again.", 401);
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  let response: Response;
+  if (token) headers.Authorization = `Bearer ${token}`;
   try {
-    response = await fetch(`${BASE}${path}`, {
+    return await fetch(`${BASE}${path}`, {
       method: options.method ?? "GET",
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -176,6 +177,26 @@ async function request<T>(
     });
   } catch {
     throw new ApiError("Cannot reach the server. Check your connection and try again.", 0);
+  }
+}
+
+async function request<T>(
+  path: string,
+  options: { method?: string; body?: unknown; staff?: boolean } = {}
+): Promise<T> {
+  let token: string | null = null;
+  if (options.staff) {
+    token = await staffToken();
+    if (!token) throw new ApiError("Please sign in again.", 401);
+  }
+
+  let response = await send(path, options, token);
+
+  // The token may have expired between the check and the request (e.g. a tab
+  // left in the background): refresh it once and retry before giving up.
+  if (response.status === 401 && options.staff) {
+    const fresh = await staffToken(true).catch(() => null);
+    if (fresh && fresh !== token) response = await send(path, options, fresh);
   }
 
   if (!response.ok) {
@@ -192,6 +213,10 @@ async function request<T>(
 
 export const checkIn = (input: CheckInRequest) =>
   request<CheckInResponse>("/check-in", { method: "POST", body: input });
+
+/** Staff override check-in: allowed outside opening hours. Needs a staff sign-in. */
+export const staffCheckIn = (input: CheckInRequest) =>
+  request<CheckInResponse>("/staff/check-in", { method: "POST", body: input, staff: true });
 
 /** Check out using the session id returned at check-in. */
 export const checkOutBySession = (sessionId: string) =>
@@ -211,6 +236,9 @@ export const getSession = (sessionId: string) =>
 // ---------------------------------------------------------------------------
 // Staff (signed in with Supabase Auth)
 // ---------------------------------------------------------------------------
+
+/** The signed-in staff member. Throws ApiError 401 (not signed in) or 403 (not staff). */
+export const getMe = () => request<{ user_id: string; role: StaffRole }>("/me", { staff: true });
 
 export const getOccupancy = () =>
   request<{ occupancy: number }>("/occupancy", { staff: true }).then((r) => r.occupancy);
