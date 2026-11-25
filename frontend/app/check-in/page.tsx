@@ -1,38 +1,34 @@
 "use client";
 
 import { useState } from "react";
+import { ApiError, checkIn, type Zone } from "@/lib/api";
 
 const QUICK_MINUTES = [15, 30, 45, 60];
 
-export default function StudentPortal() {
-  const [fullName, setFullName] = useState("");
+export default function CheckInPage() {
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
   const [minutes, setMinutes] = useState("");
-  const [zone, setZone] = useState("Main");
-  const [checkingBag, setCheckingBag] = useState<"no" | "yes">("no");
+  const [zone, setZone] = useState<Zone>("Main");
+  const [checkingBag, setCheckingBag] = useState<"No" | "Yes">("No");
   const [bagNumber, setBagNumber] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
-  function handleBagChoiceChange(value: "no" | "yes") {
+  function handleBagChoiceChange(value: "No" | "Yes") {
     setCheckingBag(value);
-    if (value === "no") {
+    if (value === "No") {
       setBagNumber("");
     }
   }
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    setMessage("");
 
-    const cleanName = fullName.trim();
     const cleanEmail = email.trim().toLowerCase();
     const cleanId = studentId.trim();
     const stayMinutes = Number(minutes);
-
-    if (!cleanName) {
-      setMessage("Please enter your full name.");
-      return;
-    }
 
     if (!cleanEmail.endsWith("@mymona.uwi.edu")) {
       setMessage("Please use your @mymona.uwi.edu email.");
@@ -49,16 +45,41 @@ export default function StudentPortal() {
       return;
     }
 
-    const bagSummary =
-      checkingBag === "yes"
-        ? bagNumber.trim()
-          ? `Bag checked (${bagNumber.trim()})`
-          : "Bag checked"
-        : "No bag declared";
+    setSubmitting(true);
 
-    setMessage(
-      `Registered ${cleanName} (${cleanId}) — ${zone}, ~${stayMinutes} mins, ${bagSummary}.`
-    );
+    try {
+      const result = await checkIn({
+        student_id: cleanId,
+        student_email: cleanEmail,
+        allotted_minutes: stayMinutes,
+        zone,
+        bag_number: checkingBag === "Yes" && bagNumber.trim() ? bagNumber.trim() : null,
+      });
+
+      const bagSummary =
+        checkingBag === "Yes"
+          ? bagNumber.trim()
+            ? `Bag checked (${bagNumber.trim()})`
+            : "Bag checked"
+          : "No bag declared";
+
+      setMessage(
+        `Registered ${result.student_id} — ${zone}, ~${stayMinutes} mins, ${bagSummary}.`
+      );
+      setEmail("");
+      setStudentId("");
+      setMinutes("");
+      setCheckingBag("No");
+      setBagNumber("");
+    } catch (err) {
+      const errorText =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Could not register visit.";
+      setMessage(`Could not register visit: ${errorText}`);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -123,19 +144,16 @@ export default function StudentPortal() {
           </p>
         </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
-          Full name
-          <input
-            type="text"
-            placeholder="Your name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", fontWeight: 400 }}
-          />
-        </label>
-
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
           @mymona.uwi.edu email
           <input
             type="email"
@@ -143,11 +161,25 @@ export default function StudentPortal() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", fontWeight: 400 }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              fontWeight: 400,
+            }}
           />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
           Student ID number
           <input
             type="text"
@@ -155,7 +187,12 @@ export default function StudentPortal() {
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
             required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", fontWeight: 400 }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              fontWeight: 400,
+            }}
           />
         </label>
 
@@ -195,16 +232,34 @@ export default function StudentPortal() {
             value={minutes}
             onChange={(e) => setMinutes(e.target.value)}
             required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2" }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+            }}
           />
         </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
           Zone
           <select
             value={zone}
-            onChange={(e) => setZone(e.target.value)}
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", backgroundColor: "#ffffff" }}
+            onChange={(e) => setZone(e.target.value as Zone)}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              backgroundColor: "#ffffff",
+            }}
           >
             <option value="Main">Main</option>
             <option value="Basement">Basement</option>
@@ -231,37 +286,48 @@ export default function StudentPortal() {
           <select
             id="checkingBag"
             value={checkingBag}
-            onChange={(e) => handleBagChoiceChange(e.target.value as "no" | "yes")}
-            style={{ padding: "0.5rem 0.6rem", borderRadius: "6px", border: "1px solid #d6cec2", backgroundColor: "#ffffff" }}
+            onChange={(e) => handleBagChoiceChange(e.target.value as "No" | "Yes")}
+            style={{
+              padding: "0.5rem 0.6rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              backgroundColor: "#ffffff",
+            }}
           >
-            <option value="no">No — No bag declared</option>
-            <option value="yes">Yes</option>
+            <option value="No">No — No bag declared</option>
+            <option value="Yes">Yes</option>
           </select>
 
-          {checkingBag === "yes" && (
+          {checkingBag === "Yes" && (
             <input
               type="text"
               placeholder="Enter bag number"
               value={bagNumber}
               onChange={(e) => setBagNumber(e.target.value)}
-              style={{ padding: "0.5rem 0.6rem", borderRadius: "6px", border: "1px solid #d6cec2", backgroundColor: "#ffffff" }}
+              style={{
+                padding: "0.5rem 0.6rem",
+                borderRadius: "6px",
+                border: "1px solid #d6cec2",
+                backgroundColor: "#ffffff",
+              }}
             />
           )}
         </div>
 
         <button
           type="submit"
+          disabled={submitting}
           style={{
             padding: "0.65rem 1rem",
-            backgroundColor: "#9a441b",
+            backgroundColor: submitting ? "#b87a5c" : "#9a441b",
             color: "#ffffff",
             border: "none",
             borderRadius: "6px",
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: submitting ? "not-allowed" : "pointer",
           }}
         >
-          &rarr; Register visit
+          {submitting ? "Registering..." : "\u2192 Register visit"}
         </button>
 
         {message && (
