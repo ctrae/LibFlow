@@ -81,7 +81,7 @@ export default function Table<T>({
     <div className="lg:overflow-x-auto">
       <div>
         {/* Table Header — desktop only */}
-        <div className="hidden lg:flex bg-background-light p-4 gap-2 font-semibold text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+        <div className="hidden lg:flex bg-secondary p-4 gap-2 font-semibold text-sm text-primary border-b border-gray-200">
           {selectable && (
             <div className="w-4 flex items-center">
               <Input
@@ -102,7 +102,7 @@ export default function Table<T>({
               </label>
             ))}
             {actions && (
-              <p className="w-20 font-semibold text-sm text-gray-600 dark:text-gray-300">
+              <p className="w-20 font-semibold text-sm text-gray-600 ">
                 Actions
               </p>
             )}
@@ -111,7 +111,7 @@ export default function Table<T>({
 
         {/* Mobile select-all */}
         {selectable && (
-          <div className="lg:hidden bg-background-light p-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+          <div className="lg:hidden p-4 flex items-center gap-2 text-sm text-gray-600 border-b border-gray-200">
             <Input
               type="checkbox"
               className="!h-4 !w-4 accent-secondary cursor-pointer"
@@ -130,7 +130,7 @@ export default function Table<T>({
         {data.map((row, rowIndex) => (
           <div
             key={rowIndex}
-            className="p-4 flex gap-3 font-medium text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700"
+            className="p-4 flex gap-3 font-medium text-sm text-gray-600 border-b border-gray-200"
           >
             {selectable && (
               <div className="w-4 flex items-start lg:items-center pt-1 lg:pt-0">
@@ -151,7 +151,7 @@ export default function Table<T>({
                   <React.Fragment key={String(col.key)}>
                     {/* Mobile: stacked label / value */}
                     <div className="flex justify-between items-start gap-3 lg:hidden">
-                      <span className="font-semibold text-gray-600 dark:text-gray-300 shrink-0">
+                      <span className="font-semibold text-gray-600 shrink-0">
                         {col.label}
                       </span>
                       <span className="text-right">{value}</span>
@@ -168,7 +168,7 @@ export default function Table<T>({
               {actions && (
                 <>
                   <div className="flex justify-between items-center gap-2 lg:hidden">
-                    <span className="font-semibold text-gray-600 dark:text-gray-300 shrink-0">
+                    <span className="font-semibold text-gray-600 shrink-0">
                       Actions
                     </span>
                     <div className="flex gap-2">{actions(row)}</div>
@@ -184,7 +184,7 @@ export default function Table<T>({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-4 text-sm text-gray-600 dark:text-gray-300">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-4 text-sm text-gray-600">
             <p>
               Page {currentPage} of {totalPages}
             </p>
@@ -195,7 +195,7 @@ export default function Table<T>({
                 className={`px-3 py-1 rounded ${
                   isFirstPage
                     ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                    : "hover:bg-gray-100"
                 }`}
               >
                 Previous
@@ -206,7 +206,7 @@ export default function Table<T>({
                 className={`px-3 py-1 rounded ${
                   isLastPage
                     ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                    : "hover:bg-gray-100"
                 }`}
               >
                 Next

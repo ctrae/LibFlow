@@ -10,7 +10,7 @@ export default function Card({
   return (
     <div
       {...cardProps}
-      className={`${className} ${inverted ? "bg-background-dark" : "bg-background-white"} w-full h-full shadow-offset-primary`}
+      className={`${className} w-full h-full shadow-offset-primary`}
     >
       <div>{children}</div>
     </div>

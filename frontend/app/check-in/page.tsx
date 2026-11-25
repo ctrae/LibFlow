@@ -24,7 +24,7 @@ function CheckInForm() {
   // Staff mode needs BOTH a signed-in staff account and an explicit ?staff=1
   // (the dashboard link). Students, or a kiosk left signed in, get the plain form.
   // The backend checks the staff token again on /staff/check-in.
-  const staffMode = Boolean(profile) && searchParams.get("staff") === "1";
+  const staffMode = Boolean(profile) && searchParams?.get("staff") === "1";
   const [success, setSuccess] = useState("");
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
@@ -61,7 +61,11 @@ function CheckInForm() {
       return;
     }
 
-    if (!Number.isInteger(stayMinutes) || stayMinutes < 15 || stayMinutes > 480) {
+    if (
+      !Number.isInteger(stayMinutes) ||
+      stayMinutes < 15 ||
+      stayMinutes > 480
+    ) {
       setMessage("Approximate stay must be between 15 and 480 minutes.");
       return;
     }
@@ -192,9 +196,16 @@ function CheckInForm() {
           <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.35rem", color: "#1f2937" }}>
             {staffMode ? "Register a student's visit" : "Register your library visit"}
           </h1>
-          <p style={{ margin: 0, fontSize: "0.82rem", color: "#6b7280", lineHeight: 1.4 }}>
-            Complete this form after scanning the library QR code. Enter your approximate
-            stay in minutes (15–480).
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.82rem",
+              color: "#6b7280",
+              lineHeight: 1.4,
+            }}
+          >
+            Complete this form after scanning the library QR code. Enter your
+            approximate stay in minutes (15–480).
           </p>
         </div>
 
@@ -250,11 +261,21 @@ function CheckInForm() {
           />
         </label>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
+        >
+          <span
+            style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}
+          >
             How long are you staying? (approximate minutes, 15–480)
           </span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.4rem" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "0.4rem",
+            }}
+          >
             {QUICK_MINUTES.map((preset) => {
               const active = Number(minutes) === preset;
               return (
@@ -391,7 +412,9 @@ function CheckInForm() {
         )}
 
         {message && (
-          <p style={{ margin: 0, fontSize: "0.85rem", color: "#1f2937" }}>{message}</p>
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "#1f2937" }}>
+            {message}
+          </p>
         )}
       </form>
     </div>

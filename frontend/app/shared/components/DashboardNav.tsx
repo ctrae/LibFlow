@@ -55,10 +55,10 @@ export default function DashboardNav({
   currentTab: string;
   onTabChange: (tab: string) => void;
 }) {
-  const logoutMutation = useLogout();
+  const { logout } = useLogout();
   const router = useRouter();
   const handleLogout = async () => {
-    await logoutMutation.mutateAsync();
+    await logout();
   };
 
   return (
@@ -92,7 +92,7 @@ export default function DashboardNav({
               <span>Override check-in</span>
             </Link>
             <button
-              // onClick={() => handleLogout()}
+              onClick={() => handleLogout()}
               className={`flex bg-white hover:bg-secondary justify-center py-3 gap-2 font-medium cursor-pointer `}
             >
               <LogOutIcon />
