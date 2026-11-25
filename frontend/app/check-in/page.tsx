@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ApiError, checkIn, type Zone } from "@/lib/api";
+import { setCurrentStudentSession } from "@/lib/studentApi";
 
 const QUICK_MINUTES = [15, 30, 45, 60];
 
 export default function CheckInPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
   const [minutes, setMinutes] = useState("");
@@ -56,21 +59,20 @@ export default function CheckInPage() {
         bag_number: checkingBag === "Yes" && bagNumber.trim() ? bagNumber.trim() : null,
       });
 
-      const bagSummary =
-        checkingBag === "Yes"
-          ? bagNumber.trim()
-            ? `Bag checked (${bagNumber.trim()})`
-            : "Bag checked"
-          : "No bag declared";
+      if (!result.session_id) {
+        setMessage("Check-in succeeded, but no session ID was returned.");
+        return;
+      }
 
-      setMessage(
-        `Registered ${result.student_id} — ${zone}, ~${stayMinutes} mins, ${bagSummary}.`
-      );
+      setCurrentStudentSession(result.session_id);
+
       setEmail("");
       setStudentId("");
       setMinutes("");
       setCheckingBag("No");
       setBagNumber("");
+
+      router.push("/student");
     } catch (err) {
       const errorText =
         err instanceof ApiError || err instanceof Error
