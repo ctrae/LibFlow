@@ -44,7 +44,11 @@ export default function StudentPortal() {
       return;
     }
 
-    if (!Number.isInteger(stayMinutes) || stayMinutes < 15 || stayMinutes > 480) {
+    if (
+      !Number.isInteger(stayMinutes) ||
+      stayMinutes < 15 ||
+      stayMinutes > 480
+    ) {
       setMessage("Approximate stay must be between 15 and 480 minutes.");
       return;
     }
@@ -57,7 +61,7 @@ export default function StudentPortal() {
         : "No bag declared";
 
     setMessage(
-      `Registered ${cleanName} (${cleanId}) — ${zone}, ~${stayMinutes} mins, ${bagSummary}.`
+      `Registered ${cleanName} (${cleanId}) — ${zone}, ~${stayMinutes} mins, ${bagSummary}.`,
     );
   }
 
@@ -114,16 +118,38 @@ export default function StudentPortal() {
           >
             QR Check-In
           </p>
-          <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.35rem", color: "#1f2937" }}>
+          <h1
+            style={{
+              margin: "0 0 0.35rem",
+              fontSize: "1.35rem",
+              color: "#1f2937",
+            }}
+          >
             Register your library visit
           </h1>
-          <p style={{ margin: 0, fontSize: "0.82rem", color: "#6b7280", lineHeight: 1.4 }}>
-            Complete this form after scanning the library QR code. Enter your approximate
-            stay in minutes (15–480).
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.82rem",
+              color: "#6b7280",
+              lineHeight: 1.4,
+            }}
+          >
+            Complete this form after scanning the library QR code. Enter your
+            approximate stay in minutes (15–480).
           </p>
         </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
           Full name
           <input
             type="text"
@@ -131,11 +157,25 @@ export default function StudentPortal() {
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", fontWeight: 400 }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              fontWeight: 400,
+            }}
           />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
           @mymona.uwi.edu email
           <input
             type="email"
@@ -143,11 +183,25 @@ export default function StudentPortal() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", fontWeight: 400 }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              fontWeight: 400,
+            }}
           />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
           Student ID number
           <input
             type="text"
@@ -155,15 +209,30 @@ export default function StudentPortal() {
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
             required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", fontWeight: 400 }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              fontWeight: 400,
+            }}
           />
         </label>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-          <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
+        >
+          <span
+            style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}
+          >
             How long are you staying? (approximate minutes, 15–480)
           </span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.4rem" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "0.4rem",
+            }}
+          >
             {QUICK_MINUTES.map((preset) => {
               const active = Number(minutes) === preset;
               return (
@@ -195,16 +264,34 @@ export default function StudentPortal() {
             value={minutes}
             onChange={(e) => setMinutes(e.target.value)}
             required
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2" }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+            }}
           />
         </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem", fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}>
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
           Zone
           <select
             value={zone}
             onChange={(e) => setZone(e.target.value)}
-            style={{ padding: "0.55rem 0.65rem", borderRadius: "6px", border: "1px solid #d6cec2", backgroundColor: "#ffffff" }}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              backgroundColor: "#ffffff",
+            }}
           >
             <option value="Main">Main</option>
             <option value="Basement">Basement</option>
@@ -231,8 +318,15 @@ export default function StudentPortal() {
           <select
             id="checkingBag"
             value={checkingBag}
-            onChange={(e) => handleBagChoiceChange(e.target.value as "no" | "yes")}
-            style={{ padding: "0.5rem 0.6rem", borderRadius: "6px", border: "1px solid #d6cec2", backgroundColor: "#ffffff" }}
+            onChange={(e) =>
+              handleBagChoiceChange(e.target.value as "no" | "yes")
+            }
+            style={{
+              padding: "0.5rem 0.6rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              backgroundColor: "#ffffff",
+            }}
           >
             <option value="no">No — No bag declared</option>
             <option value="yes">Yes</option>
@@ -244,7 +338,12 @@ export default function StudentPortal() {
               placeholder="Enter bag number"
               value={bagNumber}
               onChange={(e) => setBagNumber(e.target.value)}
-              style={{ padding: "0.5rem 0.6rem", borderRadius: "6px", border: "1px solid #d6cec2", backgroundColor: "#ffffff" }}
+              style={{
+                padding: "0.5rem 0.6rem",
+                borderRadius: "6px",
+                border: "1px solid #d6cec2",
+                backgroundColor: "#ffffff",
+              }}
             />
           )}
         </div>
@@ -265,7 +364,9 @@ export default function StudentPortal() {
         </button>
 
         {message && (
-          <p style={{ margin: 0, fontSize: "0.85rem", color: "#1f2937" }}>{message}</p>
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "#1f2937" }}>
+            {message}
+          </p>
         )}
       </form>
     </div>

@@ -9,10 +9,9 @@ interface AuthUser {
   name: string;
   email: string;
   id: number;
-  role: "student" | "admin";
+  role: string;
   avatarUrl: string;
   phone: string | null;
-  tenantId: number;
 }
 
 interface AuthState {
@@ -53,7 +52,6 @@ export const useAuthStore = create<AuthState>()(
             avatarUrl: data.avatarUrl || "",
             role: data.role,
             phone: data.phone || "",
-            tenantId: data.tenantId,
           },
           token: data.token,
           isAuthenticated: true,
@@ -135,7 +133,6 @@ export const useAuthStore = create<AuthState>()(
             phone: userPhone,
             avatarUrl: avatarUrl || "",
             role: "admin",
-            tenantId: parsedTenantId,
           };
 
           set({
