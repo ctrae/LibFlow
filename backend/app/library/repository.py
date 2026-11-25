@@ -4,6 +4,15 @@ from typing import Any
 from supabase import Client
 
 
+def _data(response):
+    """Return the row from a maybe_single() query, or None if nothing matched.
+
+    The Supabase client returns None (not an empty response) when no row is
+    found, so reading `.data` directly would raise AttributeError.
+    """
+    return response.data if response is not None else None
+
+
 class LibraryRepository:
     """All direct Supabase/PostgreSQL access for LIBFLOW."""
 
@@ -11,15 +20,15 @@ class LibraryRepository:
         self.client = client
 
     def find_active_session(self, student_id: str):
-        return (
+        response = (
             self.client.table("library_sessions")
             .select("*")
             .eq("student_id", student_id)
             .eq("status", "active")
             .maybe_single()
             .execute()
-            .data
         )
+        return _data(response)
 
     def create_session(self, payload: dict[str, Any]):
         return (
@@ -32,14 +41,14 @@ class LibraryRepository:
         )
 
     def get_session(self, session_id: str):
-        return (
+        response = (
             self.client.table("library_sessions")
             .select("*")
             .eq("id", session_id)
             .maybe_single()
             .execute()
-            .data
         )
+        return _data(response)
 
     def list_sessions(self, status: str | None = None):
         query = self.client.table("library_sessions").select("*")
@@ -50,15 +59,15 @@ class LibraryRepository:
         )
 
     def update_session(self, session_id: str, payload: dict[str, Any]):
-        return (
+        response = (
             self.client.table("library_sessions")
             .update(payload)
             .eq("id", session_id)
             .select("*")
             .maybe_single()
             .execute()
-            .data
         )
+        return _data(response)
 
     def count_active_sessions(self) -> int:
         response = (
@@ -96,6 +105,16 @@ class LibraryRepository:
             .execute()
             .data or []
         )
+
+    def get_staff_member(self, user_id: str):
+        response = (
+            self.client.table("staff")
+            .select("user_id,role")
+            .eq("user_id", user_id)
+            .maybe_single()
+            .execute()
+        )
+        return _data(response)
 
     def add_staff(self, user_id: str, role: str):
         return (

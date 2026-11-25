@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Hepta_Slab } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider } from "../hooks/useAuth";
+import { Toaster } from "../ui/toaster";
 import "./globals.css";
 import { TanStackQueryClientProvider } from "./shared/providers/QueryClientProvider";
 
@@ -15,10 +17,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${heptaSlab.variable} h-full antialiased`}>
-      <TanStackQueryClientProvider>
-        <body className="min-h-full flex flex-col">{children}</body>
-      </TanStackQueryClientProvider>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">
+        <AuthProvider>
+          {children}
+          <Toaster />
+        </AuthProvider>
+      </body>
     </html>
   );
 }

@@ -3,6 +3,7 @@ from functools import lru_cache
 
 from fastapi import APIRouter, Depends, Query
 
+from app.core.auth import require_head_librarian, require_staff
 from app.database.supabase import get_supabase
 from app.library.repository import LibraryRepository
 from app.library.schemas import (
@@ -62,7 +63,7 @@ def get_session(session_id: str, service: LibraryService = Depends(get_service))
     return service.get_session(session_id)
 
 
-@router.get("/sessions", response_model=list[SessionResponse])
+@router.get("/sessions", response_model=list[SessionResponse], dependencies=[Depends(require_staff)])
 def get_sessions(
     status: str | None = Query(default=None),
     service: LibraryService = Depends(get_service),
@@ -70,7 +71,7 @@ def get_sessions(
     return service.get_sessions(status)
 
 
-@router.get("/students/{student_id}/sessions", response_model=list[SessionResponse])
+@router.get("/students/{student_id}/sessions", response_model=list[SessionResponse], dependencies=[Depends(require_staff)])
 def student_history(student_id: str, service: LibraryService = Depends(get_service)):
     return service.student_history(student_id)
 
@@ -78,7 +79,7 @@ def student_history(student_id: str, service: LibraryService = Depends(get_servi
 # ----------------------------- Occupancy ------------------------------
 
 
-@router.get("/occupancy", response_model=OccupancyResponse)
+@router.get("/occupancy", response_model=OccupancyResponse, dependencies=[Depends(require_staff)])
 def occupancy(service: LibraryService = Depends(get_service)):
     return service.occupancy()
 
@@ -86,7 +87,7 @@ def occupancy(service: LibraryService = Depends(get_service)):
 # ----------------------------- Overrides ------------------------------
 
 
-@router.patch("/sessions/{session_id}/status", response_model=StatusUpdateResponse)
+@router.patch("/sessions/{session_id}/status", response_model=StatusUpdateResponse, dependencies=[Depends(require_staff)])
 def update_status(
     session_id: str,
     request: StatusUpdateRequest,
@@ -95,7 +96,7 @@ def update_status(
     return service.update_status(session_id, request)
 
 
-@router.post("/sessions/expire-overdue")
+@router.post("/sessions/expire-overdue", dependencies=[Depends(require_staff)])
 def expire_overdue(service: LibraryService = Depends(get_service)):
     return service.expire_overdue()
 
@@ -103,12 +104,12 @@ def expire_overdue(service: LibraryService = Depends(get_service)):
 # ----------------------------- Bag Check ------------------------------
 
 
-@router.get("/bags", response_model=list[BagResponse])
+@router.get("/bags", response_model=list[BagResponse], dependencies=[Depends(require_staff)])
 def active_bags(service: LibraryService = Depends(get_service)):
     return service.get_active_bags()
 
 
-@router.patch("/sessions/{session_id}/bag", response_model=BagResponse)
+@router.patch("/sessions/{session_id}/bag", response_model=BagResponse, dependencies=[Depends(require_staff)])
 def update_bag(
     session_id: str,
     request: BagUpdateRequest,
@@ -120,7 +121,7 @@ def update_bag(
 # ------------------------------- Audit --------------------------------
 
 
-@router.get("/events", response_model=list[SessionEventResponse])
+@router.get("/events", response_model=list[SessionEventResponse], dependencies=[Depends(require_staff)])
 def events(
     session_id: str | None = Query(default=None),
     service: LibraryService = Depends(get_service),
@@ -131,7 +132,7 @@ def events(
 # ----------------------------- Analytics ------------------------------
 
 
-@router.get("/analytics/hourly", response_model=list[HourlyOccupancyRow])
+@router.get("/analytics/hourly", response_model=list[HourlyOccupancyRow], dependencies=[Depends(require_staff)])
 def hourly_analytics(
     report_date: date = Query(..., alias="date"),
     service: LibraryService = Depends(get_service),
@@ -139,7 +140,7 @@ def hourly_analytics(
     return service.hourly_occupancy(report_date)
 
 
-@router.get("/analytics/daily", response_model=list[DailyTotalsRow])
+@router.get("/analytics/daily", response_model=list[DailyTotalsRow], dependencies=[Depends(require_staff)])
 def daily_analytics(
     start: date,
     end: date,
@@ -148,7 +149,7 @@ def daily_analytics(
     return service.daily_totals(start, end)
 
 
-@router.get("/analytics/average-stay", response_model=AverageStayResponse)
+@router.get("/analytics/average-stay", response_model=AverageStayResponse, dependencies=[Depends(require_staff)])
 def average_stay(
     start: date,
     end: date,
@@ -160,7 +161,7 @@ def average_stay(
 # ------------------------- Daily Visit Totals -------------------------
 
 
-@router.post("/daily-totals/{report_date}", response_model=SaveDailyTotalResponse)
+@router.post("/daily-totals/{report_date}", response_model=SaveDailyTotalResponse, dependencies=[Depends(require_staff)])
 def save_daily_total(
     report_date: date,
     service: LibraryService = Depends(get_service),
@@ -169,16 +170,15 @@ def save_daily_total(
 
 
 # ------------------------------- Staff --------------------------------
-# These endpoints are intended for the course prototype. In production,
-# protect them with authenticated staff authorization before exposing them.
+# Head librarians only. Sign in as a head librarian to manage the staff list.
 
 
-@router.get("/staff", response_model=list[StaffResponse])
+@router.get("/staff", response_model=list[StaffResponse], dependencies=[Depends(require_head_librarian)])
 def list_staff(service: LibraryService = Depends(get_service)):
     return service.list_staff()
 
 
-@router.post("/staff", response_model=StaffResponse, status_code=201)
+@router.post("/staff", response_model=StaffResponse, status_code=201, dependencies=[Depends(require_head_librarian)])
 def add_staff(
     request: StaffCreateRequest,
     service: LibraryService = Depends(get_service),
@@ -186,7 +186,7 @@ def add_staff(
     return service.add_staff(request.user_id, request.role)
 
 
-@router.delete("/staff/{user_id}")
+@router.delete("/staff/{user_id}", dependencies=[Depends(require_head_librarian)])
 def remove_staff(user_id: str, service: LibraryService = Depends(get_service)):
     return service.remove_staff(user_id)
 

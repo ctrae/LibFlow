@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@tanstack/react-query':
-        specifier: ^5.108.4
-        version: 5.108.4(@types/react@19.3.0)(react@19.3.0)
       '@supabase/supabase-js':
         specifier: ^2.119.2
         version: 2.119.2
