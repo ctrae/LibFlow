@@ -268,6 +268,12 @@ export const getAverageStay = (start: string, end: string) =>
     { staff: true }
   );
 
+export const getTotalCheckouts = (start: string, end: string) =>
+  request<{ total_checkouts: number }>(
+    `/analytics/total-checkouts?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+    { staff: true }
+  );
+
 /** Save the visit totals for one day to the database (FR-06). */
 export const saveDailyTotal = (date: string) =>
   request<SavedDailyTotal>(`/daily-totals/${encodeURIComponent(date)}`, { method: "POST", staff: true });

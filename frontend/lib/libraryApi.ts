@@ -4,6 +4,7 @@ import {
   getDailyTotals,
   getAverageStay as fetchAverageStay,
   getHourlyOccupancy as fetchHourlyOccupancy,
+  getTotalCheckouts as fetchTotalCheckouts,
 } from "./api";
 
 import type {
@@ -146,24 +147,10 @@ export async function getTotalCheckouts(
   startDate: string,
   endDate: string,
 ): Promise<number> {
-  const dates: string[] = [];
-  let date = startDate;
-
-  while (date <= endDate) {
-    dates.push(date);
-    date = getNextDateString(date);
-  }
-
-  const dailyReports = await Promise.all(
-    dates.map((day) => fetchHourlyOccupancy(day)),
-  );
-
-  return dailyReports.reduce(
-    (total, report) =>
-      total + report.reduce((dailyTotal, hour) => dailyTotal + hour.check_outs, 0),
-    0,
-  );
+  const result = await fetchTotalCheckouts(startDate, endDate);
+  return result.total_checkouts;
 }
+
 
 export async function verifyAnalyticsStaff(): Promise<boolean> {
   const {

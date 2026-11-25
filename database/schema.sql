@@ -4,7 +4,7 @@
 -- Does, in order:
 --   1. Tables: library_sessions, library_session_events,
 --              staff (allowlist), daily_visit_totals
---   2. Constraints and indexes
+--   2. Constraints and in
 --   3. Audit trigger (every status change is logged)
 --   4. Staff helpers: is_staff(), is_head_librarian()
 --   5. Row Level Security (RLS) policies
@@ -498,6 +498,28 @@ as $$
     and check_in <  ((p_end + 1)::timestamp at time zone 'America/Jamaica');
 $$;
 
+
+-- 7g. Report: total completed checkouts in a date range.
+create or replace function public.report_total_checkouts(
+    p_start date,
+    p_end date
+)
+returns table (total_checkouts bigint)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select count(*)::bigint
+  from public.library_sessions
+  where status = 'exited'
+    and check_out is not null
+    and check_out >= (p_start::timestamp at time zone 'America/Jamaica')
+    and check_out < ((p_end + 1)::timestamp at time zone 'America/Jamaica');
+$$;
+revoke all on function public.report_total_checkouts(date, date) from public, anon;
+grant execute on function public.report_total_checkouts(date, date) to authenticated;
+
 -- 7f. Save the visit total for one day (FR-06). Saving the same day again
 --     updates it.
 create or replace function public.save_daily_total(p_day date)
@@ -523,6 +545,44 @@ begin
   return r;
 end;
 $$;
+-- 7g. Automatically save daily visit totals after closing.
+-- Times below use UTC because pg_cron uses the database timezone.
+-- Jamaica is UTC-5.
+
+create extension if not exists pg_cron;
+
+-- Weekdays: 6:05 PM Jamaica time (11:05 PM UTC).
+select cron.schedule(
+    'save-weekday-daily-total',
+    '5 23 * * 1-5',
+    $cron$
+        select public.save_daily_total(
+            (now() at time zone 'America/Jamaica')::date
+        );
+    $cron$
+);
+
+-- Saturday: 6:05 PM Jamaica time.
+select cron.schedule(
+    'save-saturday-daily-total',
+    '5 23 * * 6',
+    $cron$
+        select public.save_daily_total(
+            (now() at time zone 'America/Jamaica')::date
+        );
+    $cron$
+);
+
+-- Sunday: 8:05 PM Jamaica time (1:05 AM UTC Monday).
+select cron.schedule(
+    'save-sunday-daily-total',
+    '5 1 * * 1',
+    $cron$
+        select public.save_daily_total(
+            ((now() at time zone 'America/Jamaica')::date - 1)
+        );
+    $cron$
+);
 
 -- Reports and totals: logged-in users only (RLS limits the data to staff)
 revoke all on function public.report_hourly_occupancy(date)       from public, anon;

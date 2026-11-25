@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
 import {
   getAverageStay,
   getCurrentOccupancy,
   getDailyVisitTotals,
   getHourlyOccupancy,
+  getTotalCheckouts,
+  verifyAnalyticsStaff,
+  logoutUser,
   type AverageStayReport,
   type DailyVisitTotal,
   type HourlyOccupancyReport,
@@ -442,41 +444,19 @@ const isSingleDayReport =
 
   useEffect(() => {
     async function verifyStaff() {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+  const isAuthorized = await verifyAnalyticsStaff();
 
-      if (authError || !user) {
-        router.replace("/login");
-        return;
-      }
-
-      const { data: staff, error: staffError } = await supabase
-        .from("staff")
-        .select("user_id, role")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (
-        staffError ||
-        !staff ||
-        (staff.role !== "library_staff" &&
-          staff.role !== "head_librarian")
-      ) {
-        console.error("Analytics staff verification error:", staffError);
-
-        await supabase.auth.signOut();
-        router.replace("/login");
-        return;
-      }
-
-    const today = getDateString(new Date());
-    setToday(today);
-    setStartDate(today);
-    setEndDate(today);
-    setAuthLoading(false);
+  if (!isAuthorized) {
+    router.replace("/login");
+    return;
   }
+
+  const today = getDateString(new Date());
+  setToday(today);
+  setStartDate(today);
+  setEndDate(today);
+  setAuthLoading(false);
+}
 
     verifyStaff();
   }, [router]);
@@ -513,19 +493,7 @@ const generateReport = useCallback(async () => {
       getDailyVisitTotals(startDate, endDate),
       getAverageStay(startDate, endDate),
       getHourlyOccupancy(startDate),
-      supabase
-  .from("library_sessions")
-  .select("id", { count: "exact", head: true })
-  .eq("status", "exited")
-  .gte("check_out", `${startDate}T00:00:00-05:00`)
-  .lt(
-    "check_out",
-    `${getNextDateString(endDate)}T00:00:00-05:00`
-  )
-        .then(({ count, error }) => {
-          if (error) throw error;
-          return count ?? 0;
-        }),
+     getTotalCheckouts(startDate, endDate),
     ]);
 
     setOccupancy(occupancyResult);
@@ -553,7 +521,6 @@ const generateReport = useCallback(async () => {
     // Initial report load after staff authorization.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     generateReport();
-    generateReport();
   }
 }, [authLoading, generateReport]);
 
@@ -567,20 +534,18 @@ const generateReport = useCallback(async () => {
     }
   }
 
-  async function handleLogout() {
+ async function handleLogout() {
   setLoggingOut(true);
   setError("");
 
-  const { error: logoutError } = await supabase.auth.signOut();
-
-  if (logoutError) {
+  try {
+    await logoutUser();
+    router.replace("/login");
+  } catch (logoutError) {
     console.error("Error logging out:", logoutError);
     setError("Unable to log out. Please try again.");
     setLoggingOut(false);
-    return;
-  }
-
-  router.replace("/login");
+   }
 }
 
   if (authLoading) {
@@ -726,7 +691,7 @@ const generateReport = useCallback(async () => {
 {isSingleDayReport ? (
   !hasHourlyActivity ? (
     <p className="mt-4 text-gray-500">
-     No data found.
+     No activity recorded during library operating hours for this date.
     </p>
   ) : (
    <div className="mt-6 h-[26rem] w-full">
