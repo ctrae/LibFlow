@@ -45,7 +45,7 @@ export default function Login() {
         authenticated = false;
       } else {
         toast({ title: 'Welcome back!', description: 'Successfully logged in.' });
-        router.replace('/live-sessions');
+        router.replace('/dashboard');
       }
       authenticated = false;
     } catch (caught) {
