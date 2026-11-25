@@ -1,122 +1,128 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabaseClient";
+import { FormEvent, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Check, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import { Button } from '../../ui/button';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import { useToast } from '../../hooks/use-toast';
+import { getCurrentProfile } from '../../lib/libraryApi';
 
-export default function LoginPage() {
+export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    setError("");
-    setLoading(true);
+    setIsLoading(true);
+    let authenticated = false;
 
     try {
-      // Sign in with Supabase Authentication
-      const { data, error: loginError } =
-        await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (error) throw error;
+      authenticated = true;
 
-      if (loginError) {
-        setError(loginError.message);
-        return;
+      const authUserId = data.user?.id;
+      if (!authUserId) throw new Error('Sign-in did not return a user.');
+      const profile = await getCurrentProfile(authUserId);
+      if (profile.user_type === 'Student') {
+        throw new Error('No staff profile is linked to this account. Request staff access first.');
       }
 
-      // Make sure Supabase returned a user
-      if (!data.user) {
-        setError("Unable to complete login.");
-        return;
+      if (!profile.is_approved) {
+        toast({ title: 'Approval pending', description: 'Your account needs Head Librarian approval before staff access is enabled.' });
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) throw signOutError;
+        authenticated = false;
+      } else {
+        toast({ title: 'Welcome back!', description: 'Successfully logged in.' });
+        router.replace('/dashboard');
       }
-
-      // Check whether the authenticated user is a LIBFLOW staff member
-      const { data: staff, error: staffError } = await supabase
-        .from("staff")
-        .select("user_id, role")
-        .eq("user_id", data.user.id)
-        .maybeSingle();
-
-      if (staffError) {
-        console.error("Staff lookup error:", staffError);
-
-        await supabase.auth.signOut();
-
-        setError("Unable to verify your LIBFLOW staff account.");
-        return;
+      authenticated = false;
+    } catch (caught) {
+      if (authenticated) {
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) {
+          toast({
+            title: 'Login could not be verified',
+            description: `${caught instanceof Error ? caught.message : 'Unable to verify staff account'} Sign out also failed: ${signOutError.message}`,
+            variant: 'destructive',
+          });
+          return;
+        }
       }
-
-      // User authenticated successfully but is not registered as staff
-      if (!staff) {
-        await supabase.auth.signOut();
-
-        setError("This account is not registered as LIBFLOW staff.");
-        return;
-      }
-
-      // Check staff role
-      if (staff.role !== "library_staff" && staff.role !== "head_librarian") {
-        await supabase.auth.signOut();
-
-        setError("You do not have permission to access LIBFLOW staff services.");
-        return;
-      }
-
-      // Staff login successful
-      router.push("/live-sessions");
-    } catch (error) {
-      console.error("Login error:", error);
-
-      setError("Something went wrong while signing in.");
+      toast({
+        title: 'Login failed',
+        description: caught instanceof Error ? caught.message : 'Invalid credentials',
+        variant: 'destructive',
+      });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }
 
   return (
-    <main>
-      <h1>LIBFLOW Staff Login</h1>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="fixed top-4 left-4 z-50">
+        <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-secondary-foreground">LibFlow</p>
+      </div>
+      <div className="grid w-full max-w-5xl gap-6 md:grid-cols-2">
+        <section className="flex flex-col justify-center space-y-8 rounded-2xl p-8 sm:p-10">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">LibFlow</h1>
+            <h1 className="text-xl font-bold text-foreground">Library operations made clearer.</h1>
+            <p className="mt-4 leading-relaxed text-muted-foreground">
+              Sign in to access the staff console and manage library operations with ease. LibFlow provides real-time insights and records of all student library sessions for future reference.
+            </p>
+          </div>
 
-      <form onSubmit={handleLogin}>
-        <div>
-          <label htmlFor="email">UWI Email</label>
+          <ul className="space-y-4">
+            {[
+              'See library operations in real time.',
+              'Handle student library sessions with ease.',
+              'Have records of all student library sessions for future reference.',
+            ].map((feature) => (
+              <li key={feature} className="flex items-start gap-3 text-sm text-foreground">
+                <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Enter your UWI email"
-            required
-          />
-        </div>
-
-        <div>
-          <label htmlFor="password">Password</label>
-
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Enter your password"
-            required
-          />
-        </div>
-
-        {error && <p>{error}</p>}
-
-        <button type="submit" disabled={loading}>
-          {loading ? "Signing in..." : "Sign In"}
-        </button>
-      </form>
-    </main>
+        <section className="space-y-6 rounded-2xl p-8 sm:p-10">
+          <div className="space-y-2 text-center">
+            <h2 className="text-2xl font-bold text-foreground">Staff Sign In</h2>
+            <p className="text-muted-foreground">Approved library workers can open the staff console.</p>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Work email</Label>
+              <Input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-11" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required className="h-11" />
+            </div>
+            <Button type="submit" className="h-11 w-full" disabled={isLoading}>
+              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in...</> : 'Sign in'}
+            </Button>
+          </form>
+          <p className="text-center text-sm text-muted-foreground">
+            New staff?{' '}
+            <Link href="/signup" className="font-medium text-primary hover:underline">Request an account</Link>
+          </p>
+        </section>
+      </div>
+    </div>
   );
 }
