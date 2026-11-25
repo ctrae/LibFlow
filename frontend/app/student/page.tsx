@@ -46,11 +46,8 @@ export default function StudentPage() {
    * changes made elsewhere in LIBFLOW.
    */
   useEffect(() => {
-    loadSession();
-
-    const interval = setInterval(() => {
-      loadSession();
-    }, 5000);
+    void Promise.resolve().then(() => loadSession());
+    const interval = setInterval(() => void loadSession(), 5000);
 
     return () => clearInterval(interval);
   }, []);
@@ -59,14 +56,15 @@ export default function StudentPage() {
    * Countdown timer.
    */
   useEffect(() => {
-    if (!session?.expires_at) {
-      setRemainingMinutes(null);
+    const expiresAt = session?.expires_at;
+    if (typeof expiresAt !== "string" || !expiresAt) {
       return;
     }
+    const expiryTime = expiresAt;
 
     function updateRemainingTime() {
       const now = Date.now();
-      const expiry = new Date(session.expires_at as string).getTime();
+      const expiry = new Date(expiryTime).getTime();
 
       const difference = expiry - now;
 

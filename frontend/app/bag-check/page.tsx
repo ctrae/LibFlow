@@ -11,6 +11,8 @@ export function BagChecksPage() {
   );
 }
 
+export default BagChecksPage;
+
 function BagChecksContent() {
   const { profile, signOut } = useAuth();
   const [bagClaims, setBagClaims] = useState<LibrarySession[]>([]);

@@ -59,6 +59,16 @@ def make_service(**setting_overrides):
     return LibraryService(FakeRepository(), make_settings(**setting_overrides))
 
 
+def test_settings_accept_frontend_origins_alias(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "http://x")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "k")
+    monkeypatch.setenv("FRONTEND_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.frontend_url == "http://localhost:3000,http://127.0.0.1:3000"
+
+
 def valid_request(**overrides):
     data = dict(student_id="620123456", student_email="a.b@mymona.uwi.edu", allotted_minutes=30)
     data.update(overrides)
