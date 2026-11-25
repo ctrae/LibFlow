@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Table, { TableColumn } from "../shared/components/Table";
 import IconButton from "../shared/components/IconButton";
 import SelectInput from "../shared/components/SelectInput";
-import { formatDate, formatDate2 } from "../shared/util/date";
+import { formatDate, formatDate2, formatTime } from "../shared/util/date";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 
@@ -108,21 +108,32 @@ export default function LibFlowDashboard() {
     },
     {
       key: "check_in",
-      label: "Check In",
-      widthClass: "w-40",
+      label: "Date",
+      widthClass: "w-30",
       render: (session: Session) => <>{`${formatDate2(session.check_in)}`}</>,
+    },
+    {
+      key: "check_in",
+      label: "Check In",
+      widthClass: "w-30",
+      render: (session: Session) => <>{`${formatTime(session.check_in)}`}</>,
     },
     {
       key: "check_out",
       label: "Check Out",
       widthClass: "w-40",
       render: (session: Session) => (
-        <>{`${session.check_out ? formatDate2(session.check_out) : "Not Checked Out"}`}</>
+        <>{`${session.check_out ? formatTime(session.check_out) : "Not Checked Out"}`}</>
       ),
     },
-    { key: "allotted_minutes", label: "Time", widthClass: "w-20" },
-    { key: "bag_number", label: "Bag ID", widthClass: "w-30" },
-    { key: "zone", label: "Zone", widthClass: "w-40" },
+    {
+      key: "allotted_minutes",
+      label: "Time",
+      widthClass: "w-20",
+      render: (session: Session) => <>{`${session.allotted_minutes} min`}</>,
+    },
+    { key: "bag_number", label: "Bag ID", widthClass: "w-20" },
+    { key: "zone", label: "Zone", widthClass: "w-20" },
     { key: "visit_reason", label: "Visit Reason", widthClass: "w-30" },
     {
       key: "status",

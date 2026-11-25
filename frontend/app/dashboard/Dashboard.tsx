@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ApiError, getSessions, type Session } from "@/lib/api";
 import QRCode from "react-qr-code";
 import Link from "next/link";
+import { useCurrentProfile, useCurrentUser } from "../shared/hooks/useAuth";
 
 export default function Dashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -12,6 +13,7 @@ export default function Dashboard() {
   const [activityFilter, setActivityFilter] = useState<
     "all" | "entry" | "exit"
   >("all");
+  const { data: user, isLoading: userLoading } = useCurrentUser();
 
   const activity = useMemo(() => {
     const sorted = [...sessions].sort(
@@ -123,6 +125,11 @@ export default function Dashboard() {
     };
   }, [sessions]);
 
+  const displayName =
+    (user!.user_metadata?.full_name as string | undefined)?.trim() ||
+    user!.email?.split("@")[0] ||
+    "Staff";
+
   return (
     <div className="min-h-screen text-[#2C221E] flex flex-col selection:bg-[#9B4531] selection:text-white">
       <div className="flex flex-1">
@@ -139,7 +146,7 @@ export default function Dashboard() {
               })}
             </p>
             <h1 className="text-4xl font-bold text-[#2C221E] mt-1">
-              Welcome, Head.
+              Welcome, {displayName}
             </h1>
             <p className="text-sm text-[#7D6E62] mt-1">
               Live library activity from registered visits.
@@ -493,7 +500,7 @@ export default function Dashboard() {
                 </div>
 
                 <Link
-                  href="/sessions"
+                  href="/dashboard?tab=Sessions"
                   className="w-full py-2.5 rounded-full border border-[#DCD0C0] text-xs font-semibold text-[#2C221E] hover:bg-[#EBE0D3]/50 transition-colors flex items-center justify-center space-x-1.5 mt-2"
                 >
                   <svg
