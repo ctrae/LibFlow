@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 
 const QUICK_MINUTES = [15, 30, 45, 60];
