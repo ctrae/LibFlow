@@ -24,6 +24,8 @@ from app.library.schemas import (
     StaffResponse,
     StatusUpdateRequest,
     StatusUpdateResponse,
+    ExtendStayRequest,
+    ExtendStayResponse,
 )
 from app.library.service import LibraryService
 
@@ -63,6 +65,16 @@ def check_out(session_id: str, service: LibraryService = Depends(get_service)):
 def student_check_out(request: CheckOutRequest, service: LibraryService = Depends(get_service)):
     return service.checkout_by_student(request)
 
+@router.post(
+    "/sessions/{session_id}/extend",
+    response_model=ExtendStayResponse,
+)
+def extend_stay(
+    session_id: str,
+    request: ExtendStayRequest,
+    service: LibraryService = Depends(get_service),
+):
+    return service.extend_stay(session_id, request)
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
 def get_session(session_id: str, service: LibraryService = Depends(get_service)):

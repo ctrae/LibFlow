@@ -8,6 +8,7 @@ from app.library.repository import LibraryRepository
 from app.library.schemas import (
     CheckInRequest,
     CheckOutRequest,
+    ExtendStayRequest,
     StatusUpdateRequest,
 )
 
@@ -72,6 +73,7 @@ class LibraryService:
                     "student_id": request.student_id,
                     "student_email": str(request.student_email).lower(),
                     "check_in": now.isoformat(),
+                    "expires_at": expires_at.isoformat(),
                     "allotted_minutes": request.allotted_minutes,
                     "zone": request.zone,
                     "bag_number": request.bag_number,
@@ -181,6 +183,99 @@ class LibraryService:
             "session_id": updated["id"],
             "status": updated["status"],
             "updated": True,
+        }
+
+    def extend_stay(
+        self,
+        session_id: str,
+        request: ExtendStayRequest,
+    ):
+        session = self.repository.get_session(session_id)
+
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail="Session not found.",
+            )
+
+        if session["status"] != "active":
+            raise HTTPException(
+                status_code=409,
+                detail="Only active sessions can be extended.",
+            )
+
+        current_expires_at = session.get("expires_at")
+
+        if not current_expires_at:
+            raise HTTPException(
+                status_code=409,
+                detail="Session does not have a valid expiration time.",
+            )
+
+        try:
+            if isinstance(current_expires_at, str):
+                current_expires_at = datetime.fromisoformat(
+                    current_expires_at.replace("Z", "+00:00")
+                )
+
+            if current_expires_at.tzinfo is None:
+                current_expires_at = current_expires_at.replace(
+                    tzinfo=timezone.utc
+                )
+
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="Session expiration time is invalid.",
+            ) from exc
+
+        now = datetime.now(timezone.utc)
+
+        if current_expires_at <= now:
+            raise HTTPException(
+                status_code=409,
+                detail="The session has already expired.",
+            )
+
+        new_expires_at = (
+            current_expires_at
+            + timedelta(minutes=request.extension_minutes)
+        )
+
+        current_allotted_minutes = session.get("allotted_minutes") or 0
+
+        new_allotted_minutes = (
+            current_allotted_minutes
+            + request.extension_minutes
+        )
+
+        try:
+            updated = self.repository.update_session(
+                session_id,
+                {
+                    "expires_at": new_expires_at.isoformat(),
+                    "allotted_minutes": new_allotted_minutes,
+                },
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Could not extend stay: {exc}",
+            ) from exc
+
+        if not updated:
+            raise HTTPException(
+                status_code=409,
+                detail="Session could not be extended.",
+            )
+
+        return {
+            "session_id": updated["id"],
+            "student_id": updated["student_id"],
+            "extension_minutes": request.extension_minutes,
+            "allotted_minutes": updated["allotted_minutes"],
+            "expires_at": updated["expires_at"],
+            "status": "active",
         }
 
     def expire_overdue(self):
