@@ -48,6 +48,12 @@ def check_in(request: CheckInRequest, service: LibraryService = Depends(get_serv
     return service.check_in(request)
 
 
+@router.post("/staff/check-in", response_model=CheckInResponse, status_code=201, dependencies=[Depends(require_staff)])
+def staff_check_in(request: CheckInRequest, service: LibraryService = Depends(get_service)):
+    """Staff override check-in: same as /check-in but allowed outside opening hours."""
+    return service.check_in(request, staff_override=True)
+
+
 @router.post("/check-out/{session_id}", response_model=CheckOutResponse)
 def check_out(session_id: str, service: LibraryService = Depends(get_service)):
     return service.checkout(session_id)
