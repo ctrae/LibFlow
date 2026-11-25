@@ -1,3 +1,5 @@
-export default function BagCheck() {
-  return <div>Bag Check</div>;
+import { BagChecksPage } from '../bag-check/page';
+
+export default function BagChecksContent() {
+  return <BagChecksPage />;
 }
