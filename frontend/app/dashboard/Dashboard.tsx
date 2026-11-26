@@ -4,32 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import { ApiError, getSessions, type Session } from "@/lib/api";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  CLOSE_MINUTES,
+  OPEN_MINUTES,
+  OPENING_HOURS_LABEL,
+  formatClock,
+  isShownToday,
+  isToday,
+  todayOpeningWindow,
+  todayWindow,
+} from "@/lib/openingHours";
 
 /** The API stores "Main"; older rows used "Main section". */
 const isMainZone = (zone: string | null) => zone === "Main" || zone === "Main section";
 
-/** Library opening hours (local time), in minutes after midnight. Keep in
- * sync with library_open_time / library_close_time in backend config. */
-const OPEN_MINUTES = 8 * 60 + 30; // 8:30 AM
-const CLOSE_MINUTES = 18 * 60; // 6:00 PM
-
-/** 510 -> "08:30", 1080 -> "18:00" (24-hour clock, for chart labels). */
-function formatClock(minutes: number) {
-  const h = String(Math.floor(minutes / 60)).padStart(2, "0");
-  const m = String(minutes % 60).padStart(2, "0");
-  return `${h}:${m}`;
-}
-
-/** 510 -> "8:30 AM", 1080 -> "6:00 PM" (12-hour clock, for text). */
-function formatClock12(minutes: number) {
-  const h24 = Math.floor(minutes / 60);
-  const h = h24 % 12 || 12;
-  const m = String(minutes % 60).padStart(2, "0");
-  return `${h}:${m} ${h24 < 12 ? "AM" : "PM"}`;
-}
-
 export default function Dashboard() {
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [allSessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activityFilter, setActivityFilter] = useState<
@@ -37,6 +27,19 @@ export default function Dashboard() {
   >("all");
   // AdminShell only renders this tab once a staff user is signed in.
   const { user } = useAuth();
+
+  // Today's opening-hours sessions, plus anyone still checked in (so the
+  // active counts and zone occupancy never miss someone inside).
+  const sessions = useMemo(() => {
+    const window = todayWindow();
+    return allSessions.filter((s) => isShownToday(s, window));
+  }, [allSessions]);
+
+  // Everyone who checked in today, at any time (Visits today card).
+  const todayCheckIns = useMemo(() => {
+    const window = todayWindow();
+    return sessions.filter((s) => isToday(s.check_in, window));
+  }, [sessions]);
 
   const activity = useMemo(() => {
     const sorted = [...sessions].sort(
@@ -58,11 +61,13 @@ export default function Dashboard() {
         minutes: s.allotted_minutes,
         zone: isMainZone(s.zone) ? "Main" : (s.zone ?? "—"),
       };
-      rows.push({ ...base, id: `${s.id}-in`, kind: "entry", at: s.check_in, label: "Check in" });
+      if (isToday(s.check_in)) {
+        rows.push({ ...base, id: `${s.id}-in`, kind: "entry", at: s.check_in, label: "Check in" });
+      }
 
       // Exited: when they checked out. Expired: when their time ran out.
       const endedAt = s.check_out ?? (s.status === "expired" ? s.expires_at : null);
-      if (endedAt && s.status !== "active") {
+      if (endedAt && s.status !== "active" && isToday(endedAt)) {
         rows.push({
           ...base,
           id: `${s.id}-out`,
@@ -119,16 +124,7 @@ export default function Dashboard() {
     const mainActive = active.filter((s) => isMainZone(s.zone)).length;
     const basementActive = active.filter((s) => s.zone === "Basement").length;
 
-    // Check-ins since local midnight during opening hours, so this card
-    // matches the "Recent visit registrations" chart.
-    const day = new Date();
-    day.setHours(0, 0, 0, 0);
-    const open = day.getTime() + OPEN_MINUTES * 60_000;
-    const close = day.getTime() + CLOSE_MINUTES * 60_000;
-    const visitsToday = sessions.filter((s) => {
-      const t = new Date(s.check_in).getTime();
-      return t >= open && t < close;
-    }).length;
+    const visitsToday = todayCheckIns.length;
 
     return {
       activeCount: active.length,
@@ -136,13 +132,10 @@ export default function Dashboard() {
       basementActive,
       visitsToday,
     };
-  }, [sessions]);
+  }, [sessions, todayCheckIns]);
   // Today's check-ins, one bar per hour of library opening time.
   const hourly = useMemo(() => {
-    const day = new Date();
-    day.setHours(0, 0, 0, 0);
-    const start = day.getTime() + OPEN_MINUTES * 60_000;
-    const end = day.getTime() + CLOSE_MINUTES * 60_000;
+    const { start, end } = todayOpeningWindow();
     const slots = Math.ceil((CLOSE_MINUTES - OPEN_MINUTES) / 60);
 
     const buckets = Array.from({ length: slots }, (_, i) => ({
@@ -150,7 +143,8 @@ export default function Dashboard() {
       count: 0,
     }));
 
-    for (const s of sessions) {
+    // The chart alone is limited to opening hours.
+    for (const s of todayCheckIns) {
       const t = new Date(s.check_in).getTime();
       if (t < start || t >= end) continue;
       buckets[Math.floor((t - start) / 3600_000)].count += 1;
@@ -158,7 +152,7 @@ export default function Dashboard() {
 
     const max = Math.max(1, ...buckets.map((b) => b.count));
     return { buckets, max };
-  }, [sessions]);
+  }, [todayCheckIns]);
 
   const zoneSplit = useMemo(() => {
     const active = sessions.filter((s) => s.status === "active");
@@ -198,7 +192,7 @@ export default function Dashboard() {
               Welcome, {displayName}
             </h1>
             <p className="text-sm text-[#7D6E62] mt-1">
-              Live library activity from registered visits.
+              Live library activity for today.
             </p>
           </div>
 
@@ -344,8 +338,7 @@ export default function Dashboard() {
                   </h3>
                 </div>
                 <p className="text-xs text-[#7D6E62] mt-0.5">
-                  Visits registered today, per hour of opening time (
-                  {formatClock12(OPEN_MINUTES)} – {formatClock12(CLOSE_MINUTES)})
+                  Visits registered today, per hour of opening time ({OPENING_HOURS_LABEL})
                 </p>
 
                 {/* Graph Container */}
@@ -484,7 +477,7 @@ export default function Dashboard() {
                   Recent visit activity
                 </h3>
                 <p className="text-xs text-[#7D6E62] mt-0.5">
-                  Registered student sessions
+                  Today&apos;s check-ins and exits
                 </p>
               </div>
 
@@ -544,7 +537,7 @@ export default function Dashboard() {
                   {activity.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-4 py-6 text-center text-xs text-[#8C7C6D]">
-                        No recent activity.
+                        No activity today yet.
                       </td>
                     </tr>
                   ) : (

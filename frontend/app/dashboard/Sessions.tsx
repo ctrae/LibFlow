@@ -15,6 +15,10 @@ import Button from "../shared/components/Button";
 import { useToast } from "@/hooks/use-toast";
 import { errorMessage, formatDate, formatDateTime, formatTime, zoneLabel } from "./format";
 import { StatusBadge } from "./StatusBadge";
+import {
+  isShownToday,
+  todayWindow,
+} from "@/lib/openingHours";
 
 type StatusFilter = "all" | SessionStatus;
 
@@ -79,8 +83,11 @@ export default function Sessions() {
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const window = todayWindow();
     return (sessionsQuery.data ?? [])
       .filter((s) => {
+        // Today's sessions, plus anyone still checked in.
+        if (!isShownToday(s, window)) return false;
         if (status !== "all" && s.status !== status) return false;
         if (hideVisited && status === "all" && s.status === "exited") return false;
         if (!term) return true;
@@ -114,7 +121,9 @@ export default function Sessions() {
       <div className="flex flex-wrap items-start justify-between gap-4 pb-6">
         <div>
           <h1 className="text-[32px] font-bold text-[#0d0d0d] leading-tight">Sessions</h1>
-          <p className="text-[#888ca0] text-[15px] mt-1">Manage library sessions</p>
+          <p className="text-[#888ca0] text-[15px] mt-1">
+            Today&apos;s sessions and anyone still checked in
+          </p>
         </div>
         <Link href="/check-in">
           <Button text="Check in Student" className="my-auto" />
