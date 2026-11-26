@@ -33,6 +33,7 @@ function CheckInForm() {
   const [studentId, setStudentId] = useState("");
   const [minutes, setMinutes] = useState("");
   const [zone, setZone] = useState<Zone>("Main");
+  const [visitReason, setVisitReason] = useState("");
   const [checkingBag, setCheckingBag] = useState<"No" | "Yes">("No");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -88,6 +89,9 @@ function CheckInForm() {
         allotted_minutes: stayMinutes,
         zone,
 
+        // Reason for visit
+        visit_reason: visitReason.trim() || null,
+
         // Main can have a bag.
         // Basement can never have a bag.
         has_bag: zone === "Main" && checkingBag === "Yes",
@@ -105,6 +109,7 @@ function CheckInForm() {
       setEmail("");
       setStudentId("");
       setMinutes("");
+      setVisitReason("");
       setCheckingBag("No");
 
       if (staffMode) {
@@ -398,6 +403,34 @@ function CheckInForm() {
             <option value="Main">Main</option>
             <option value="Basement">Basement</option>
           </select>
+        </label>
+
+        {/* REASON FOR VISIT */}
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+            fontSize: "0.82rem",
+            fontWeight: 600,
+            color: "#374151",
+          }}
+        >
+          Reason for visit
+
+          <input
+            type="text"
+            placeholder="Enter reason for your visit"
+            value={visitReason}
+            onChange={(e) => setVisitReason(e.target.value)}
+            maxLength={100}
+            style={{
+              padding: "0.55rem 0.65rem",
+              borderRadius: "6px",
+              border: "1px solid #d6cec2",
+              fontWeight: 400,
+            }}
+          />
         </label>
 
         {/* BAG CHECK IS ONLY AVAILABLE IN THE MAIN ZONE */}
