@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   checkOutStudent,
+  extendStudentStay,
   getCurrentStudentSession,
 } from "../../lib/studentApi";
 import type { StudentSession } from "../../types/student";
@@ -15,7 +16,8 @@ export default function StudentPage() {
   );
 
   const [extensionTime, setExtensionTime] = useState("30");
-  const [extensionRequested, setExtensionRequested] = useState(false);
+  const [extendingStay, setExtendingStay] = useState(false);
+  const [extensionMessage, setExtensionMessage] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
@@ -47,7 +49,11 @@ export default function StudentPage() {
    */
   useEffect(() => {
     void Promise.resolve().then(() => loadSession());
-    const interval = setInterval(() => void loadSession(), 5000);
+
+    const interval = setInterval(
+      () => void loadSession(),
+      5000
+    );
 
     return () => clearInterval(interval);
   }, []);
@@ -57,9 +63,11 @@ export default function StudentPage() {
    */
   useEffect(() => {
     const expiresAt = session?.expires_at;
+
     if (typeof expiresAt !== "string" || !expiresAt) {
       return;
     }
+
     const expiryTime = expiresAt;
 
     function updateRemainingTime() {
@@ -73,12 +81,17 @@ export default function StudentPage() {
         return;
       }
 
-      setRemainingMinutes(Math.ceil(difference / 60000));
+      setRemainingMinutes(
+        Math.ceil(difference / 60000)
+      );
     }
 
     updateRemainingTime();
 
-    const timer = setInterval(updateRemainingTime, 1000);
+    const timer = setInterval(
+      updateRemainingTime,
+      1000
+    );
 
     return () => clearInterval(timer);
   }, [session]);
@@ -99,25 +112,73 @@ export default function StudentPage() {
       setCheckingOut(true);
       setError("");
 
-      await checkOutStudent(session.session_id);
+      await checkOutStudent(
+        session.session_id
+      );
 
       setSession(null);
     } catch (error) {
       console.error("Checkout failed:", error);
-      setError("Unable to complete checkout. Please try again.");
+      setError(
+        "Unable to complete checkout. Please try again."
+      );
     } finally {
       setCheckingOut(false);
     }
   }
 
   /*
-   * Temporary UI behaviour for extension requests.
+   * Extend the student's active session.
    *
-   * The actual database workflow will be connected once
-   * the extension mechanism is confirmed.
+   * This is an immediate action.
+   * There is NO staff approval step.
    */
-  function handleExtensionRequest() {
-    setExtensionRequested(true);
+  async function handleExtendStay() {
+    if (!session) return;
+
+    const minutes = Number(extensionTime);
+
+    if (![15, 30, 45, 60].includes(minutes)) {
+      setError(
+        "Please select a valid extension time."
+      );
+      return;
+    }
+
+    try {
+      setExtendingStay(true);
+      setError("");
+      setExtensionMessage("");
+
+      await extendStudentStay(
+        session.session_id,
+        minutes
+      );
+
+      /*
+       * Reload the session so the dashboard gets
+       * the new expires_at and allotted_minutes
+       * directly from the backend.
+       */
+      await loadSession();
+
+      setExtensionMessage(
+        `${minutes} minutes added to your session.`
+      );
+    } catch (error) {
+      console.error(
+        "Extend stay failed:",
+        error
+      );
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to extend your stay. Please try again."
+      );
+    } finally {
+      setExtendingStay(false);
+    }
   }
 
   /* =========================================================
@@ -150,6 +211,7 @@ export default function StudentPage() {
           </p>
 
           <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm">
+
             <h1 className="text-xl font-bold text-[#17233C]">
               Unable to Load Session
             </h1>
@@ -157,6 +219,7 @@ export default function StudentPage() {
             <p className="mt-2 text-gray-600">
               {error}
             </p>
+
           </div>
 
         </div>
@@ -261,7 +324,9 @@ export default function StudentPage() {
                 }`}
               />
 
-              {isExpired ? "EXPIRED" : "ACTIVE"}
+              {isExpired
+                ? "EXPIRED"
+                : "ACTIVE"}
 
             </span>
 
@@ -402,12 +467,16 @@ export default function StudentPage() {
 
               <select
                 value={extensionTime}
-                onChange={(event) =>
-                  setExtensionTime(event.target.value)
-                }
-                disabled={extensionRequested}
+                onChange={(event) => {
+                  setExtensionTime(
+                    event.target.value
+                  );
+                  setExtensionMessage("");
+                }}
+                disabled={extendingStay}
                 className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-[#17233C] outline-none focus:border-[#A6533D] focus:ring-2 focus:ring-[#A6533D]/20 disabled:bg-gray-100"
               >
+
                 <option value="15">
                   15 minutes
                 </option>
@@ -423,39 +492,39 @@ export default function StudentPage() {
                 <option value="60">
                   60 minutes
                 </option>
+
               </select>
 
               <button
                 type="button"
-                onClick={handleExtensionRequest}
-                disabled={extensionRequested}
+                onClick={handleExtendStay}
+                disabled={extendingStay}
                 className="rounded-xl bg-[#A6533D] px-5 py-3 font-semibold text-white transition hover:bg-[#8F4634] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
               >
-                {extensionRequested
-                  ? "Request Submitted"
-                  : "Request More Time"}
+                {extendingStay
+                  ? "Extending..."
+                  : "Extend Stay"}
               </button>
 
             </div>
 
-            {/* REQUEST STATUS */}
+            {/* EXTENSION STATUS */}
 
             <div className="mt-5 border-t border-gray-100 pt-5">
 
               <p className="text-sm text-gray-500">
-                Request Status
+                Extension Status
               </p>
 
               <p
                 className={`mt-1 font-semibold ${
-                  extensionRequested
-                    ? "text-amber-600"
+                  extensionMessage
+                    ? "text-green-600"
                     : "text-gray-700"
                 }`}
               >
-                {extensionRequested
-                  ? `Pending approval — ${extensionTime} minutes requested`
-                  : "No request submitted"}
+                {extensionMessage ||
+                  "No extension applied"}
               </p>
 
             </div>

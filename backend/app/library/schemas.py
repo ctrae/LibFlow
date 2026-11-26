@@ -61,6 +61,20 @@ class CheckOutResponse(BaseModel):
     check_out: datetime
     status: Literal["exited"]
 
+class ExtendStayRequest(BaseModel):
+    extension_minutes: int = Field(
+        ge=15,
+        le=60,
+    )
+
+
+class ExtendStayResponse(BaseModel):
+    session_id: str
+    student_id: str
+    extension_minutes: int
+    allotted_minutes: int
+    expires_at: datetime
+    status: Literal["active"]
 
 class SessionResponse(BaseModel):
     id: str
@@ -68,11 +82,13 @@ class SessionResponse(BaseModel):
     student_email: str
     check_in: datetime
     check_out: datetime | None = None
+    expires_at: datetime
     allotted_minutes: int
     zone: str | None = None
     bag_number: str | None = None
     visit_reason: str | None = None
     status: SessionStatus
+
 
 
 class OccupancyResponse(BaseModel):

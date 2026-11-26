@@ -58,6 +58,7 @@ export interface Session {
   bag_number: string | null;
   visit_reason: string | null;
   status: SessionStatus;
+  expires_at: string | null;
 }
 
 export interface Bag {
@@ -212,6 +213,29 @@ export const checkOutByStudent = (studentId: string, email: string) =>
 /** The student dashboard reads its own session by id. */
 export const getSession = (sessionId: string) =>
   request<Session>(`/sessions/${encodeURIComponent(sessionId)}`);
+
+export const extendStay = (
+  sessionId: string,
+  extensionMinutes: number
+) =>
+  request<ExtendStayResponse>(
+    `/sessions/${encodeURIComponent(sessionId)}/extend`,
+    {
+      method: "POST",
+      body: {
+        extension_minutes: extensionMinutes,
+      },
+    }
+  );
+
+export interface ExtendStayResponse {
+  session_id: string;
+  student_id: string;
+  extension_minutes: number;
+  allotted_minutes: number;
+  expires_at: string;
+  status: "active";
+}
 
 // ---------------------------------------------------------------------------
 // Staff (signed in with Supabase Auth)

@@ -1,6 +1,7 @@
 import {
-  getSession,
   checkOutBySession,
+  extendStay as extendStayApi,
+  getSession,
 } from "./api";
 
 import type { StudentSession } from "../types/student";
@@ -33,30 +34,32 @@ export async function getCurrentStudentSession(): Promise<StudentSession | null>
     student_id: session.student_id,
     check_in_time: session.check_in,
     check_out_time: session.check_out,
-
-    // Backend currently does not return expires_at in SessionResponse.
-    // Calculate it from check-in time + allotted minutes.
-    expires_at: new Date(
-      new Date(session.check_in).getTime() +
-        session.allotted_minutes * 60 * 1000
-    ).toISOString(),
-
+    expires_at: session.expires_at,
     duration_minutes: session.allotted_minutes,
     allotted_time: session.allotted_minutes,
-
     session_status: session.status,
     status: session.status,
-
     baggage_info: session.bag_number
-      ? "Checked In"
-      : null,
-
+      ? "Bag checked in"
+      : "No bag declared",
     bag_number: session.bag_number,
   };
 }
 
-export async function checkOutStudent(sessionId: string): Promise<void> {
+export async function checkOutStudent(
+  sessionId: string
+): Promise<void> {
   await checkOutBySession(sessionId);
 
   clearCurrentStudentSession();
+}
+
+export async function extendStudentStay(
+  sessionId: string,
+  extensionMinutes: number
+) {
+  return extendStayApi(
+    sessionId,
+    extensionMinutes
+  );
 }
