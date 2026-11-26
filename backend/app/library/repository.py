@@ -89,6 +89,21 @@ class LibraryRepository:
             .data or []
         )
 
+    def get_active_bag_numbers(self) -> list[str]:
+        response = (
+            self.client.table("library_sessions")
+            .select("bag_number")
+            .eq("status", "active")
+            .not_.is_("bag_number", "null")
+            .execute()  
+        )
+
+        return [
+            row["bag_number"]
+            for row in (response.data or [])
+            if row.get("bag_number")
+        ]
+
     def list_events(self, session_id: str | None = None):
         query = self.client.table("library_session_events").select("*")
         if session_id:

@@ -21,25 +21,34 @@ function CheckInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { profile } = useAuth();
+
   // Staff mode needs BOTH a signed-in staff account and an explicit ?staff=1
   // (the dashboard link). Students, or a kiosk left signed in, get the plain form.
   // The backend checks the staff token again on /staff/check-in.
-  const staffMode = Boolean(profile) && searchParams?.get("staff") === "1";
+  const staffMode =
+    Boolean(profile) && searchParams?.get("staff") === "1";
+
   const [success, setSuccess] = useState("");
   const [email, setEmail] = useState("");
   const [studentId, setStudentId] = useState("");
   const [minutes, setMinutes] = useState("");
   const [zone, setZone] = useState<Zone>("Main");
   const [checkingBag, setCheckingBag] = useState<"No" | "Yes">("No");
-  const [bagNumber, setBagNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
+  function handleZoneChange(value: Zone) {
+    setZone(value);
+
+    // Basement does not support bag check.
+    // Force the bag state to "No" whenever Basement is selected.
+    if (value === "Basement") {
+      setCheckingBag("No");
+    }
+  }
+
   function handleBagChoiceChange(value: "No" | "Yes") {
     setCheckingBag(value);
-    if (value === "No") {
-      setBagNumber("");
-    }
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -78,9 +87,15 @@ function CheckInForm() {
         student_email: cleanEmail,
         allotted_minutes: stayMinutes,
         zone,
-        bag_number: checkingBag === "Yes" && bagNumber.trim() ? bagNumber.trim() : null,
+
+        // Main can have a bag.
+        // Basement can never have a bag.
+        has_bag: zone === "Main" && checkingBag === "Yes",
       };
-      const result = staffMode ? await staffCheckIn(payload) : await checkIn(payload);
+
+      const result = staffMode
+        ? await staffCheckIn(payload)
+        : await checkIn(payload);
 
       if (!result.session_id) {
         setMessage("Check-in succeeded, but no session ID was returned.");
@@ -91,15 +106,16 @@ function CheckInForm() {
       setStudentId("");
       setMinutes("");
       setCheckingBag("No");
-      setBagNumber("");
 
       if (staffMode) {
-        // Stay on the form for the next student; the session is not this browser's.
+        // Stay on the form for the next student;
+        // the session is not this browser's.
         setSuccess(
-          payload.bag_number
-            ? `Checked in student ${result.student_id}. Bag tag ${payload.bag_number} recorded.`
-            : `Checked in student ${result.student_id}.`,
+          payload.has_bag
+            ? `Checked in student ${result.student_id}. Bag tag assigned automatically.`
+            : `Checked in student ${result.student_id}.`
         );
+
         return;
       }
 
@@ -110,6 +126,7 @@ function CheckInForm() {
         err instanceof ApiError || err instanceof Error
           ? err.message
           : "Could not register visit.";
+
       setMessage(`Could not register visit: ${errorText}`);
     } finally {
       setSubmitting(false);
@@ -145,11 +162,20 @@ function CheckInForm() {
             <span>
               <strong>Staff override</strong> · opening-hours check skipped
             </span>
-            <Link href="/dashboard" style={{ fontWeight: 600, color: "#9a441b", whiteSpace: "nowrap" }}>
+
+            <Link
+              href="/dashboard"
+              style={{
+                fontWeight: 600,
+                color: "#9a441b",
+                whiteSpace: "nowrap",
+              }}
+            >
               ← Back to dashboard
             </Link>
           </div>
         )}
+
         <div
           style={{
             display: "flex",
@@ -161,7 +187,10 @@ function CheckInForm() {
             marginBottom: "0.5rem",
           }}
         >
-          <span style={{ fontWeight: 700, color: "#1f2d5a" }}>LIBFLOW</span>
+          <span style={{ fontWeight: 700, color: "#1f2d5a" }}>
+            LIBFLOW
+          </span>
+
           <span>FST Library student entry</span>
         </div>
       </div>
@@ -193,9 +222,19 @@ function CheckInForm() {
           >
             {staffMode ? "Staff check-in" : "QR Check-In"}
           </p>
-          <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.35rem", color: "#1f2937" }}>
-            {staffMode ? "Register a student's visit" : "Register your library visit"}
+
+          <h1
+            style={{
+              margin: "0 0 0.35rem",
+              fontSize: "1.35rem",
+              color: "#1f2937",
+            }}
+          >
+            {staffMode
+              ? "Register a student's visit"
+              : "Register your library visit"}
           </h1>
+
           <p
             style={{
               margin: 0,
@@ -220,6 +259,7 @@ function CheckInForm() {
           }}
         >
           @mymona.uwi.edu email
+
           <input
             type="email"
             placeholder="name@mymona.uwi.edu"
@@ -246,6 +286,7 @@ function CheckInForm() {
           }}
         >
           Student ID number
+
           <input
             type="text"
             placeholder="Nine-digit ID"
@@ -262,13 +303,22 @@ function CheckInForm() {
         </label>
 
         <div
-          style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.35rem",
+          }}
         >
           <span
-            style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}
+            style={{
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              color: "#374151",
+            }}
           >
             How long are you staying? (approximate minutes, 15–480)
           </span>
+
           <div
             style={{
               display: "grid",
@@ -278,6 +328,7 @@ function CheckInForm() {
           >
             {QUICK_MINUTES.map((preset) => {
               const active = Number(minutes) === preset;
+
               return (
                 <button
                   key={preset}
@@ -288,8 +339,12 @@ function CheckInForm() {
                     fontSize: "0.78rem",
                     borderRadius: "6px",
                     cursor: "pointer",
-                    border: active ? "1px solid #9a441b" : "1px solid #d6cec2",
-                    backgroundColor: active ? "#9a441b" : "#faf7f2",
+                    border: active
+                      ? "1px solid #9a441b"
+                      : "1px solid #d6cec2",
+                    backgroundColor: active
+                      ? "#9a441b"
+                      : "#faf7f2",
                     color: active ? "#ffffff" : "#374151",
                     fontWeight: active ? 600 : 400,
                   }}
@@ -299,6 +354,7 @@ function CheckInForm() {
               );
             })}
           </div>
+
           <input
             type="number"
             min={15}
@@ -326,9 +382,12 @@ function CheckInForm() {
           }}
         >
           Zone
+
           <select
             value={zone}
-            onChange={(e) => setZone(e.target.value as Zone)}
+            onChange={(e) =>
+              handleZoneChange(e.target.value as Zone)
+            }
             style={{
               padding: "0.55rem 0.65rem",
               borderRadius: "6px",
@@ -341,78 +400,107 @@ function CheckInForm() {
           </select>
         </label>
 
-        <div
-          style={{
-            backgroundColor: "#faf7f2",
-            border: "1px solid #ece5da",
-            borderRadius: "6px",
-            padding: "0.65rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.45rem",
-          }}
-        >
-          <label
-            htmlFor="checkingBag"
-            style={{ fontSize: "0.82rem", fontWeight: 600, color: "#374151" }}
-          >
-            Baggage information — Are you checking a bag? Yes or no?
-          </label>
-          <select
-            id="checkingBag"
-            value={checkingBag}
-            onChange={(e) => handleBagChoiceChange(e.target.value as "No" | "Yes")}
+        {/* BAG CHECK IS ONLY AVAILABLE IN THE MAIN ZONE */}
+        {zone === "Main" && (
+          <div
             style={{
-              padding: "0.5rem 0.6rem",
+              backgroundColor: "#faf7f2",
+              border: "1px solid #ece5da",
               borderRadius: "6px",
-              border: "1px solid #d6cec2",
-              backgroundColor: "#ffffff",
+              padding: "0.65rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.45rem",
             }}
           >
-            <option value="No">No — No bag declared</option>
-            <option value="Yes">Yes</option>
-          </select>
+            <label
+              htmlFor="checkingBag"
+              style={{
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                color: "#374151",
+              }}
+            >
+              Baggage information — Are you checking a bag? Yes or no?
+            </label>
 
-          {checkingBag === "Yes" && (
-            <input
-              type="text"
-              placeholder="Enter bag number"
-              value={bagNumber}
-              onChange={(e) => setBagNumber(e.target.value)}
+            <select
+              id="checkingBag"
+              value={checkingBag}
+              onChange={(e) =>
+                handleBagChoiceChange(e.target.value as "No" | "Yes")
+              }
               style={{
                 padding: "0.5rem 0.6rem",
                 borderRadius: "6px",
                 border: "1px solid #d6cec2",
                 backgroundColor: "#ffffff",
               }}
-            />
-          )}
-        </div>
+            >
+              <option value="No">No — No bag declared</option>
+              <option value="Yes">Yes</option>
+            </select>
+
+            {/* Show this only when the student chooses Yes */}
+            {checkingBag === "Yes" && (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.75rem",
+                  color: "#6b7280",
+                  lineHeight: 1.4,
+                }}
+              >
+                A bag number will be automatically generated for you when you
+                check in.
+              </p>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"
           disabled={submitting}
           style={{
             padding: "0.65rem 1rem",
-            backgroundColor: submitting ? "#b87a5c" : "#9a441b",
+            backgroundColor: submitting
+              ? "#b87a5c"
+              : "#9a441b",
             color: "#ffffff",
             border: "none",
             borderRadius: "6px",
             fontWeight: 600,
-            cursor: submitting ? "not-allowed" : "pointer",
+            cursor: submitting
+              ? "not-allowed"
+              : "pointer",
           }}
         >
-          {submitting ? "Registering..." : "\u2192 Register visit"}
+          {submitting
+            ? "Registering..."
+            : "→ Register visit"}
         </button>
 
         {success && (
-          <p role="status" style={{ margin: 0, fontSize: "0.85rem", color: "#065f46" }}>
+          <p
+            role="status"
+            style={{
+              margin: 0,
+              fontSize: "0.85rem",
+              color: "#065f46",
+            }}
+          >
             {success}
           </p>
         )}
 
         {message && (
-          <p style={{ margin: 0, fontSize: "0.85rem", color: "#1f2937" }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.85rem",
+              color: "#1f2937",
+            }}
+          >
             {message}
           </p>
         )}

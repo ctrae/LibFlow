@@ -28,7 +28,7 @@ export interface CheckInRequest {
   student_email: string;
   allotted_minutes: number; // 15 to 480
   zone?: Zone;
-  bag_number?: string | null;
+  has_bag: boolean
   visit_reason?: string | null;
 }
 

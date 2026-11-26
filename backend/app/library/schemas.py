@@ -16,7 +16,7 @@ class CheckInRequest(BaseModel):
     student_email: EmailStr
     allotted_minutes: int = Field(ge=15, le=480)
     zone: Zone = "Main"
-    bag_number: str | None = Field(default=None, max_length=50)
+    has_bag: bool = False
     visit_reason: str | None = Field(default=None, max_length=100)
 
     @field_validator("student_id")

@@ -67,6 +67,36 @@ class LibraryService:
 
         expires_at = now + timedelta(minutes=request.allotted_minutes)
 
+        bag_number = None
+
+        if request.has_bag:
+            active_bags = self.repository.get_active_bag_numbers()
+
+            used_numbers = set()
+
+            for bag in active_bags:
+                if not bag.startswith("BAG-"):
+                    continue
+
+                try:
+                    number = int(bag[4:])
+                except ValueError:
+                    continue
+
+                if 1 <= number <= 999:
+                    used_numbers.add(number)
+
+            for number in range(1, 1000):
+                if number not in used_numbers:
+                    bag_number = f"BAG-{number:03d}"
+                    break
+
+            if bag_number is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="All bag numbers are currently in use.",
+                )
+
         try:
             session = self.repository.create_session(
                 {
@@ -76,7 +106,7 @@ class LibraryService:
                     "expires_at": expires_at.isoformat(),
                     "allotted_minutes": request.allotted_minutes,
                     "zone": request.zone,
-                    "bag_number": request.bag_number,
+                    "bag_number": bag_number,
                     "visit_reason": request.visit_reason,
                     "status": "active",
                 }
