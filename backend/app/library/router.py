@@ -16,6 +16,7 @@ from app.library.schemas import (
     CheckOutResponse,
     DailyTotalsRow,
     HourlyOccupancyRow,
+    MeResponse,
     OccupancyResponse,
     SaveDailyTotalResponse,
     SessionEventResponse,
@@ -196,6 +197,14 @@ def save_daily_total(
 
 
 # ------------------------------- Staff --------------------------------
+
+
+@router.get("/me", response_model=MeResponse)
+def me(staff: dict = Depends(require_staff)):
+    """The signed-in staff member. 401 if not signed in, 403 if not staff."""
+    return staff
+
+
 # Head librarians only. Sign in as a head librarian to manage the staff list.
 
 

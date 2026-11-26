@@ -151,39 +151,6 @@ export async function getTotalCheckouts(
   return result.total_checkouts;
 }
 
-
-export async function verifyAnalyticsStaff(): Promise<boolean> {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) return false;
-
-  try {
-    const profile = await getCurrentProfile(user.id);
-
-    const isStaff =
-      profile.user_type === "Head Librarian" ||
-      profile.user_type === "Library Staff";
-
-    if (!isStaff || !profile.is_approved) {
-      await supabase.auth.signOut();
-      return false;
-    }
-
-    return true;
-  } catch {
-    await supabase.auth.signOut();
-    return false;
-  }
-}
-
-export async function logoutUser(): Promise<void> {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
-}
-
 export function getNextDateString(date: string): string {
   const nextDate = new Date(`${date}T12:00:00`);
   nextDate.setDate(nextDate.getDate() + 1);

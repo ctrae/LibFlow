@@ -241,6 +241,9 @@ export interface ExtendStayResponse {
 // Staff (signed in with Supabase Auth)
 // ---------------------------------------------------------------------------
 
+/** The signed-in staff member. Throws ApiError 401 (not signed in) or 403 (not staff). */
+export const getMe = () => request<{ user_id: string; role: StaffRole }>("/me", { staff: true });
+
 export const getOccupancy = () =>
   request<{ occupancy: number }>("/occupancy", { staff: true }).then((r) => r.occupancy);
 
