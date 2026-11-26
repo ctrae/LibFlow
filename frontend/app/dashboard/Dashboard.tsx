@@ -8,6 +8,26 @@ import { useAuth } from "@/hooks/useAuth";
 /** The API stores "Main"; older rows used "Main section". */
 const isMainZone = (zone: string | null) => zone === "Main" || zone === "Main section";
 
+/** Library opening hours (local time), in minutes after midnight. Keep in
+ * sync with library_open_time / library_close_time in backend config. */
+const OPEN_MINUTES = 8 * 60 + 30; // 8:30 AM
+const CLOSE_MINUTES = 18 * 60; // 6:00 PM
+
+/** 510 -> "08:30", 1080 -> "18:00" (24-hour clock, for chart labels). */
+function formatClock(minutes: number) {
+  const h = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const m = String(minutes % 60).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+/** 510 -> "8:30 AM", 1080 -> "6:00 PM" (12-hour clock, for text). */
+function formatClock12(minutes: number) {
+  const h24 = Math.floor(minutes / 60);
+  const h = h24 % 12 || 12;
+  const m = String(minutes % 60).padStart(2, "0");
+  return `${h}:${m} ${h24 < 12 ? "AM" : "PM"}`;
+}
+
 export default function Dashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -99,10 +119,16 @@ export default function Dashboard() {
     const mainActive = active.filter((s) => isMainZone(s.zone)).length;
     const basementActive = active.filter((s) => s.zone === "Basement").length;
 
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-    const visitsToday = sessions.filter(
-      (s) => s.check_in.slice(0, 10) === today,
-    ).length;
+    // Check-ins since local midnight during opening hours, so this card
+    // matches the "Recent visit registrations" chart.
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    const open = day.getTime() + OPEN_MINUTES * 60_000;
+    const close = day.getTime() + CLOSE_MINUTES * 60_000;
+    const visitsToday = sessions.filter((s) => {
+      const t = new Date(s.check_in).getTime();
+      return t >= open && t < close;
+    }).length;
 
     return {
       activeCount: active.length,
@@ -111,19 +137,23 @@ export default function Dashboard() {
       visitsToday,
     };
   }, [sessions]);
+  // Today's check-ins, one bar per hour of library opening time.
   const hourly = useMemo(() => {
-    const now = Date.now();
-    const buckets = Array.from({ length: 12 }, (_, i) => ({
-      hourStart: now - (11 - i) * 3600_000,
-      label: i === 11 ? "Now" : `${11 - i}h`,
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    const start = day.getTime() + OPEN_MINUTES * 60_000;
+    const end = day.getTime() + CLOSE_MINUTES * 60_000;
+    const slots = Math.ceil((CLOSE_MINUTES - OPEN_MINUTES) / 60);
+
+    const buckets = Array.from({ length: slots }, (_, i) => ({
+      label: formatClock(OPEN_MINUTES + i * 60),
       count: 0,
     }));
 
     for (const s of sessions) {
       const t = new Date(s.check_in).getTime();
-      const hoursAgo = Math.floor((now - t) / 3600_000);
-      if (hoursAgo < 0 || hoursAgo > 11) continue;
-      buckets[11 - hoursAgo].count += 1;
+      if (t < start || t >= end) continue;
+      buckets[Math.floor((t - start) / 3600_000)].count += 1;
     }
 
     const max = Math.max(1, ...buckets.map((b) => b.count));
@@ -314,31 +344,45 @@ export default function Dashboard() {
                   </h3>
                 </div>
                 <p className="text-xs text-[#7D6E62] mt-0.5">
-                  Visits created during the last 12 hours
+                  Visits registered today, per hour of opening time (
+                  {formatClock12(OPEN_MINUTES)} – {formatClock12(CLOSE_MINUTES)})
                 </p>
 
                 {/* Graph Container */}
                 <div className="mt-6 border border-[#E3D7C7]/70 rounded-xl bg-[#F5EFE6]/50 h-[220px] flex flex-col justify-end p-4">
-                  <div className="flex items-end gap-1.5 h-[150px]">
-                    {hourly.buckets.map((b, i) => (
+                  <div className="flex items-end gap-1 sm:gap-2 h-[150px] border-b border-[#E3D7C7]/60">
+                    {hourly.buckets.map((b) => (
                       <div
-                        key={i}
-                        className="flex-1 flex flex-col items-center justify-end h-full"
+                        key={b.label}
+                        className="flex-1 min-w-0 flex flex-col items-center justify-end h-full"
                       >
+                        <span
+                          className={`text-[11px] font-semibold mb-1 ${
+                            b.count ? "text-[#2C221E]" : "text-[#B5A797]"
+                          }`}
+                        >
+                          {b.count}
+                        </span>
                         <div
-                          className="w-full bg-[#9B4531] rounded-t-sm transition-all"
+                          className="w-full max-w-[36px] bg-[#9B4531] rounded-t-sm transition-all"
                           style={{
-                            height: `${(b.count / hourly.max) * 100}%`,
+                            // Leave room for the count label above the tallest bar.
+                            height: `${(b.count / hourly.max) * 80}%`,
                             minHeight: b.count ? 4 : 0,
                           }}
-                          title={`${b.count} visit${b.count === 1 ? "" : "s"} at ${b.label}`}
                         />
                       </div>
                     ))}
                   </div>
-                  <div className="w-full border-b border-[#E3D7C7]/60 pb-2 flex justify-between text-[11px] text-[#8C7C6D] mt-2">
-                    {hourly.buckets.map((b, i) => (
-                      <span key={i}>{b.label}</span>
+                  {/* Labels sit in the same columns as the bars. On narrow
+                      screens they tilt so they never spill past the chart. */}
+                  <div className="w-full pt-2 h-8 lg:h-auto flex gap-1 sm:gap-2 text-[10px] lg:text-[11px] text-[#8C7C6D]">
+                    {hourly.buckets.map((b) => (
+                      <span key={b.label} className="flex-1 min-w-0 flex justify-center">
+                        <span className="inline-block whitespace-nowrap -rotate-45 lg:rotate-0">
+                          {b.label}
+                        </span>
+                      </span>
                     ))}
                   </div>
                 </div>
