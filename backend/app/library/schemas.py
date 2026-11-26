@@ -149,6 +149,11 @@ class SaveDailyTotalResponse(BaseModel):
     saved_by: str | None = None
 
 
+class MeResponse(BaseModel):
+    user_id: str
+    role: StaffRole
+
+
 class StaffResponse(BaseModel):
     user_id: str
     role: StaffRole

@@ -1,15 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import AdminShell from "../shared/components/AdminShell";
 import {
   getAverageStay,
   getCurrentOccupancy,
   getDailyVisitTotals,
   getHourlyOccupancy,
   getTotalCheckouts,
-  verifyAnalyticsStaff,
-  logoutUser,
   type AverageStayReport,
   type DailyVisitTotal,
   type HourlyOccupancyReport,
@@ -403,13 +401,13 @@ if (daysInRange <= 31) {
 }
 
 
-export default function AnalyticsPage() {
-  const router = useRouter();
+function AnalyticsContent() {
 
   const [period, setPeriod] = useState<ReportingPeriod>("daily");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [today, setToday] = useState("");
+  // Reports open on today. AdminShell has already confirmed staff access.
+  const [today] = useState(() => getDateString(new Date()));
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
 
   const [occupancy, setOccupancy] = useState<number | null>(null);
   const [totalVisits, setTotalVisits] = useState(0);
@@ -438,28 +436,8 @@ const visitTableData = getVisitTableData(period, dailyTotals);
 const isSingleDayReport =
   Boolean(startDate && endDate && startDate === endDate);
   const [loading, setLoading] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function verifyStaff() {
-  const isAuthorized = await verifyAnalyticsStaff();
-
-  if (!isAuthorized) {
-    router.replace("/login");
-    return;
-  }
-
-  const today = getDateString(new Date());
-  setToday(today);
-  setStartDate(today);
-  setEndDate(today);
-  setAuthLoading(false);
-}
-
-    verifyStaff();
-  }, [router]);
 
 
 const generateReport = useCallback(async () => {
@@ -517,12 +495,10 @@ const generateReport = useCallback(async () => {
 
 
  useEffect(() => {
-  if (!authLoading) {
-    // Initial report load after staff authorization.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    generateReport();
-  }
-}, [authLoading, generateReport]);
+  // Load the report on open and whenever the dates change.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  generateReport();
+}, [generateReport]);
 
   function handlePeriodChange(value: ReportingPeriod) {
     setPeriod(value);
@@ -534,26 +510,10 @@ const generateReport = useCallback(async () => {
     }
   }
 
- async function handleLogout() {
-  setLoggingOut(true);
-  setError("");
 
-  try {
-    await logoutUser();
-    router.replace("/login");
-  } catch (logoutError) {
-    console.error("Error logging out:", logoutError);
-    setError("Unable to log out. Please try again.");
-    setLoggingOut(false);
-   }
-}
-
-  if (authLoading) {
-    return <main className="p-8">Verifying staff access...</main>;
-  }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6 text-gray-900 sm:p-10">
+    <div className="text-gray-900">
       <div className="mx-auto max-w-7xl space-y-8">
        <header className="flex flex-wrap items-start justify-between gap-4">
   <div>
@@ -563,14 +523,6 @@ const generateReport = useCallback(async () => {
     </p>
   </div>
 
-  <button
-    type="button"
-    onClick={handleLogout}
-    disabled={loggingOut}
-    className="rounded-lg bg-red-600 px-5 py-2 font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-  >
-    {loggingOut ? "Logging out..." : "Logout"}
-  </button>
 </header>
 
         <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -811,6 +763,14 @@ const generateReport = useCallback(async () => {
           )}
         </section>
       </div>
-    </main>
+    </div>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <AdminShell currentTab="report">
+      <AnalyticsContent />
+    </AdminShell>
   );
 }

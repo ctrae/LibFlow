@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, getSessions, type Session } from "@/lib/api";
-import QRCode from "react-qr-code";
 import Link from "next/link";
-import { useCurrentProfile, useCurrentUser } from "../shared/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
+
+/** The API stores "Main"; older rows used "Main section". */
+const isMainZone = (zone: string | null) => zone === "Main" || zone === "Main section";
 
 export default function Dashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -13,7 +15,8 @@ export default function Dashboard() {
   const [activityFilter, setActivityFilter] = useState<
     "all" | "entry" | "exit"
   >("all");
-  const { data: user, isLoading: userLoading } = useCurrentUser();
+  // AdminShell only renders this tab once a staff user is signed in.
+  const { user } = useAuth();
 
   const activity = useMemo(() => {
     const sorted = [...sessions].sort(
@@ -24,24 +27,28 @@ export default function Dashboard() {
       id: string;
       kind: "entry" | "exit";
       at: string;
-      label: string;
-      sub: string;
+      label: "Check in" | "Exited" | "Expired";
+      student: string;
+      minutes: number;
+      zone: string;
     }[] = [];
     for (const s of sorted) {
-      rows.push({
-        id: `${s.id}-in`,
-        kind: "entry",
-        at: s.check_in,
-        label: `${s.student_id} checked in`,
-        sub: `${s.zone ?? "—"} · ${s.allotted_minutes} min`,
-      });
-      if (s.check_out) {
+      const base = {
+        student: s.student_id,
+        minutes: s.allotted_minutes,
+        zone: isMainZone(s.zone) ? "Main" : (s.zone ?? "—"),
+      };
+      rows.push({ ...base, id: `${s.id}-in`, kind: "entry", at: s.check_in, label: "Check in" });
+
+      // Exited: when they checked out. Expired: when their time ran out.
+      const endedAt = s.check_out ?? (s.status === "expired" ? s.expires_at : null);
+      if (endedAt && s.status !== "active") {
         rows.push({
+          ...base,
           id: `${s.id}-out`,
           kind: "exit",
-          at: s.check_out,
-          label: `${s.student_id} checked out`,
-          sub: `${s.visit_reason ?? "—"}`,
+          at: endedAt,
+          label: s.status === "expired" ? "Expired" : "Exited",
         });
       }
     }
@@ -75,9 +82,21 @@ export default function Dashboard() {
     };
   }, []);
 
+  // Refresh every 5 seconds so the live count updates within 5 s (SR-04.4).
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      try {
+        setSessions(await getSessions());
+      } catch {
+        // Keep the last data on screen; the next tick tries again.
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
   const stats = useMemo(() => {
     const active = sessions.filter((s) => s.status === "active");
-    const mainActive = active.filter((s) => s.zone === "Main section").length;
+    const mainActive = active.filter((s) => isMainZone(s.zone)).length;
     const basementActive = active.filter((s) => s.zone === "Basement").length;
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
@@ -114,7 +133,7 @@ export default function Dashboard() {
   const zoneSplit = useMemo(() => {
     const active = sessions.filter((s) => s.status === "active");
     const total = active.length || 1; // avoid /0
-    const main = active.filter((s) => s.zone === "Main section").length;
+    const main = active.filter((s) => isMainZone(s.zone)).length;
     const basement = active.filter((s) => s.zone === "Basement").length;
     return {
       main,
@@ -126,8 +145,8 @@ export default function Dashboard() {
   }, [sessions]);
 
   const displayName =
-    (user!.user_metadata?.full_name as string | undefined)?.trim() ||
-    user!.email?.split("@")[0] ||
+    (user?.user_metadata?.full_name as string | undefined)?.trim() ||
+    user?.email?.split("@")[0] ||
     "Staff";
 
   return (
@@ -324,136 +343,10 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-
-              {/* Recent visit activity */}
-              <div className="bg-white p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-[#2C221E] text-base">
-                      Recent visit activity
-                    </h3>
-                    <p className="text-xs text-[#7D6E62] mt-0.5">
-                      Registered student sessions
-                    </p>
-                  </div>
-
-                  {/* Filter Pills */}
-                  <div className="flex items-center space-x-1 bg-[#EBE0D3] p-1 rounded-full text-xs">
-                    <button
-                      onClick={() => setActivityFilter("all")}
-                      className={
-                        activityFilter === "all"
-                          ? "bg-[#2C221E] text-white px-3 py-1 rounded-full font-medium"
-                          : "text-[#6E5E52] px-3 py-1 rounded-full hover:text-[#2C221E] transition-colors"
-                      }
-                    >
-                      All activity
-                    </button>
-
-                    <button
-                      onClick={() => setActivityFilter("entry")}
-                      className={
-                        activityFilter === "entry"
-                          ? "bg-[#2C221E] text-white px-3 py-1 rounded-full font-medium"
-                          : "text-[#6E5E52] px-3 py-1 rounded-full hover:text-[#2C221E] transition-colors"
-                      }
-                    >
-                      Entry
-                    </button>
-
-                    <button
-                      onClick={() => setActivityFilter("exit")}
-                      className={
-                        activityFilter === "exit"
-                          ? "bg-[#2C221E] text-white px-3 py-1 rounded-full font-medium"
-                          : "text-[#6E5E52] px-3 py-1 rounded-full hover:text-[#2C221E] transition-colors"
-                      }
-                    >
-                      Exit
-                    </button>
-                  </div>
-                </div>
-
-                {/* Horizontal Scroll bar / Table Preview */}
-                <div className="border-t border-[#E3D7C7]/60 pt-3 space-y-2">
-                  {activity.length === 0 ? (
-                    <p className="py-6 text-center text-xs text-[#8C7C6D]">
-                      No recent activity.
-                    </p>
-                  ) : (
-                    activity.map((r) => (
-                      <div
-                        key={r.id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${r.kind === "entry" ? "bg-green-500" : "bg-[#9B4531]"}`}
-                          />
-                          <span className="text-[#2C221E] truncate">
-                            {r.label}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0 text-xs text-[#8C7C6D]">
-                          <span className="truncate max-w-[140px]">
-                            {r.sub}
-                          </span>
-                          <span>
-                            {new Date(r.at).toLocaleTimeString("en-US", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
             </div>
 
-            {/* Right Column (QR & Zone Occupancy) */}
+            {/* Right Column (Zone Occupancy) */}
             <div className="col-span-4 space-y-6">
-              {/* Student Check-in QR */}
-              <div className="bg-white p-6 shadow-sm space-y-3">
-                <p className="text-[11px] font-bold text-[#9B4531] tracking-wider uppercase">
-                  STUDENT CHECK-IN QR
-                </p>
-                <div className="flex items-start space-x-4">
-                  {/* QR Code SVG Placeholder */}
-                  <div className="w-20 h-20 bg-white p-1.5 rounded-lg border border-[#E3D7C7] flex-shrink-0 flex items-center justify-center">
-                    <QRCode
-                      value={`${window.location.origin}/check-in`}
-                      size={62}
-                      fgColor="#2C221E"
-                    />
-                  </div>
-
-                  <p className="text-xs text-[#6E5E52] leading-relaxed">
-                    Place this at the entrance for students to register a visit.
-                  </p>
-                </div>
-
-                <a
-                  href="#"
-                  className="inline-flex items-center space-x-1 text-xs font-semibold text-[#9B4531] hover:underline pt-1"
-                >
-                  <span>Open registration page</span>
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M14 5l7 7m0 0l-7 7m7-7H3"
-                    />
-                  </svg>
-                </a>
-              </div>
 
               {/* Zone Occupancy */}
               <div className="bg-white p-6 shadow-sm space-y-5">
@@ -484,19 +377,36 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex justify-between text-xs font-medium text-[#2C221E]">
-                    <span>Main section</span>
-                    <span>{zoneSplit.main}</span>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs font-medium text-[#2C221E]">
+                      <span>Main section</span>
+                      <span>{zoneSplit.main}</span>
+                    </div>
+                    <div className="w-full h-2 bg-[#EBE0D3] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#9B4531] rounded-full"
+                        style={{ width: `${zoneSplit.mainPct}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-[#8C7C6D]">
+                      {zoneSplit.mainPct}% of active sessions
+                    </p>
                   </div>
-                  <div className="w-full h-2 bg-[#EBE0D3] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#9B4531] rounded-full"
-                      style={{ width: `${zoneSplit.mainPct}%` }}
-                    />
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs font-medium text-[#2C221E]">
+                      <span>Basement</span>
+                      <span>{zoneSplit.basement}</span>
+                    </div>
+                    <div className="w-full h-2 bg-[#EBE0D3] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#C08A5B] rounded-full"
+                        style={{ width: `${zoneSplit.basementPct}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-[#8C7C6D]">
+                      {zoneSplit.basementPct}% of active sessions
+                    </p>
                   </div>
-                  <p className="text-[11px] text-[#8C7C6D]">
-                    {zoneSplit.mainPct}% of active sessions
-                  </p>
                 </div>
 
                 <Link
@@ -519,6 +429,101 @@ export default function Dashboard() {
                   <span>View live sessions</span>
                 </Link>
               </div>
+            </div>
+          </div>
+
+          {/* Recent visit activity (full width) */}
+          <div className="bg-white p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-[#2C221E] text-base">
+                  Recent visit activity
+                </h3>
+                <p className="text-xs text-[#7D6E62] mt-0.5">
+                  Registered student sessions
+                </p>
+              </div>
+
+              {/* Filter Pills */}
+              <div className="flex items-center space-x-1 bg-[#EBE0D3] p-1 rounded-full text-xs">
+                <button
+                  onClick={() => setActivityFilter("all")}
+                  className={
+                    activityFilter === "all"
+                      ? "bg-[#2C221E] text-white px-3 py-1 rounded-full font-medium"
+                      : "text-[#6E5E52] px-3 py-1 rounded-full hover:text-[#2C221E] transition-colors"
+                  }
+                >
+                  All activity
+                </button>
+
+                <button
+                  onClick={() => setActivityFilter("entry")}
+                  className={
+                    activityFilter === "entry"
+                      ? "bg-[#2C221E] text-white px-3 py-1 rounded-full font-medium"
+                      : "text-[#6E5E52] px-3 py-1 rounded-full hover:text-[#2C221E] transition-colors"
+                  }
+                >
+                  Check in
+                </button>
+
+                <button
+                  onClick={() => setActivityFilter("exit")}
+                  className={
+                    activityFilter === "exit"
+                      ? "bg-[#2C221E] text-white px-3 py-1 rounded-full font-medium"
+                      : "text-[#6E5E52] px-3 py-1 rounded-full hover:text-[#2C221E] transition-colors"
+                  }
+                >
+                  Exited / Expired
+                </button>
+              </div>
+            </div>
+
+            {/* Activity table */}
+            <div className="w-full">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-[#fdf3e7] h-[44px]">
+                    {["Activity", "Student", "Planned stay", "Zone", "Time"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 font-bold text-[13px] text-[#8c6753] tracking-wide whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {activity.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-xs text-[#8C7C6D]">
+                        No recent activity.
+                      </td>
+                    </tr>
+                  ) : (
+                    activity.map((r) => (
+                      <tr
+                        key={r.id}
+                        className="border-b border-[#edf2f7] h-[48px] hover:bg-gray-50/50 transition-colors text-sm"
+                      >
+                        <td className="px-4 font-medium text-[#2C221E] whitespace-nowrap">{r.label}</td>
+                        <td className="px-4 text-[#2C221E] whitespace-nowrap">{r.student}</td>
+                        <td className="px-4 text-[#4a5568] whitespace-nowrap">{r.minutes} min</td>
+                        <td className="px-4 text-[#4a5568] whitespace-nowrap">{r.zone}</td>
+                        <td className="px-4 text-xs text-[#8C7C6D] whitespace-nowrap">
+                          {new Date(r.at).toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </main>
