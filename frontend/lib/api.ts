@@ -12,7 +12,8 @@
 
 import { supabase } from "./supabaseClient";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
+
 const BASE = `${API_URL}/library`;
 
 // ---------------------------------------------------------------------------
