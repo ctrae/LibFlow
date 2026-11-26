@@ -18,7 +18,19 @@ import { StatusBadge } from "./StatusBadge";
 
 type StatusFilter = "all" | SessionStatus;
 
-const COLUMNS = ["Student", "Date", "Check In", "Check Out", "Time", "Bag", "Zone", "Status", "Actions"];
+const COLUMNS = [
+  "Student",
+  "Date",
+  "Check In",
+  "Check Out",
+  "Time",
+  "Reason for Visit",
+  "Bag",
+  "Zone",
+  "Status",
+  "Actions",
+];
+
 const PAGE_SIZES = [10, 20, 50, 100];
 
 export default function Sessions() {
@@ -120,6 +132,7 @@ export default function Sessions() {
             aria-label="Search sessions"
             className="w-full sm:w-[300px] h-[44px] bg-[#f4f5f8] text-[14px] px-4 rounded-[4px] outline-none placeholder-[#a0aec0]"
           />
+
           <select
             value={status}
             onChange={(e) => resetPage(setStatus)(e.target.value as StatusFilter)}
@@ -131,6 +144,7 @@ export default function Sessions() {
             <option value="exited">Exited</option>
             <option value="expired">Expired</option>
           </select>
+
           <button
             type="button"
             onClick={() => expireMutation.mutate()}
@@ -149,6 +163,7 @@ export default function Sessions() {
               {rows.length} Session{rows.length === 1 ? "" : "s"}
             </span>
           </div>
+
           <div className="flex items-center gap-6">
             <label
               className={`flex items-center gap-2 select-none text-[14px] text-[#8a92a6] ${status === "all" ? "cursor-pointer" : "opacity-50"}`}
@@ -163,6 +178,7 @@ export default function Sessions() {
               />
               Hide visited
             </label>
+
             <label className="flex items-center gap-2 text-[14px] text-[#8a92a6]">
               Rows
               <select
@@ -188,48 +204,87 @@ export default function Sessions() {
 
         {/* Table */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
+          <table className="w-full text-left border-collapse min-w-[1100px]">
             <thead>
               <tr className="bg-[#fdf3e7] h-[52px]">
                 {COLUMNS.map((h) => (
-                  <th key={h} className="px-4 font-bold text-[14px] text-[#8c6753] tracking-wide whitespace-nowrap">
+                  <th
+                    key={h}
+                    className="px-4 font-bold text-[14px] text-[#8c6753] tracking-wide whitespace-nowrap"
+                  >
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
+
             <tbody>
               {sessionsQuery.isLoading ? (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="px-4 py-10 text-center text-sm text-[#8a92a6]">
+                  <td
+                    colSpan={COLUMNS.length}
+                    className="px-4 py-10 text-center text-sm text-[#8a92a6]"
+                  >
                     Loading sessions…
                   </td>
                 </tr>
               ) : pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="px-4 py-10 text-center text-sm text-[#8a92a6]">
+                  <td
+                    colSpan={COLUMNS.length}
+                    className="px-4 py-10 text-center text-sm text-[#8a92a6]"
+                  >
                     {search ? `No sessions match "${search}".` : "No sessions match."}
                   </td>
                 </tr>
               ) : (
                 pageRows.map((s) => (
-                  <tr key={s.id} className="border-b border-[#edf2f7] h-[64px] hover:bg-gray-50/50 transition-colors text-[14px] text-[#4a5568]">
+                  <tr
+                    key={s.id}
+                    className="border-b border-[#edf2f7] h-[64px] hover:bg-gray-50/50 transition-colors text-[14px] text-[#4a5568]"
+                  >
                     <td className="px-4">
                       <div className="font-medium">{s.student_id}</div>
                       <div className="text-xs text-[#a0aec0]">{s.student_email}</div>
-                      {s.visit_reason && <div className="text-xs text-[#a0aec0]">{s.visit_reason}</div>}
                     </td>
-                    <td className="px-4 whitespace-nowrap">{formatDate(s.check_in)}</td>
-                    <td className="px-4 whitespace-nowrap" title={formatDateTime(s.check_in)}>
+
+                    <td className="px-4 whitespace-nowrap">
+                      {formatDate(s.check_in)}
+                    </td>
+
+                    <td
+                      className="px-4 whitespace-nowrap"
+                      title={formatDateTime(s.check_in)}
+                    >
                       {formatTime(s.check_in)}
                     </td>
-                    <td className="px-4 whitespace-nowrap">{formatTime(s.check_out)}</td>
-                    <td className="px-4 whitespace-nowrap">{s.allotted_minutes} min</td>
-                    <td className="px-4">{s.bag_number ?? "—"}</td>
-                    <td className="px-4">{zoneLabel(s.zone)}</td>
+
+                    <td className="px-4 whitespace-nowrap">
+                      {formatTime(s.check_out)}
+                    </td>
+
+                    <td className="px-4 whitespace-nowrap">
+                      {s.allotted_minutes} min
+                    </td>
+
+                    <td className="px-4 max-w-[220px]">
+                      <span title={s.visit_reason ?? undefined}>
+                        {s.visit_reason ?? "—"}
+                      </span>
+                    </td>
+
+                    <td className="px-4">
+                      {s.bag_number ?? "—"}
+                    </td>
+
+                    <td className="px-4">
+                      {zoneLabel(s.zone)}
+                    </td>
+
                     <td className="px-4">
                       <StatusBadge status={s.status} />
                     </td>
+
                     <td className="px-4">
                       <div className="flex gap-2">
                         {s.status === "active" && (
@@ -237,11 +292,17 @@ export default function Sessions() {
                             <button
                               type="button"
                               disabled={busyId === s.id}
-                              onClick={() => statusMutation.mutate({ id: s.id, next: "exited" })}
+                              onClick={() =>
+                                statusMutation.mutate({
+                                  id: s.id,
+                                  next: "exited",
+                                })
+                              }
                               className="rounded-full bg-[#9c5127] px-3 py-1 text-xs font-semibold text-white hover:bg-[#86441f] disabled:opacity-60 whitespace-nowrap"
                             >
                               Check out
                             </button>
+
                             <button
                               type="button"
                               disabled={busyId === s.id}
@@ -252,6 +313,7 @@ export default function Sessions() {
                             </button>
                           </>
                         )}
+
                         <button
                           type="button"
                           onClick={() => setEditing(s)}
@@ -274,6 +336,7 @@ export default function Sessions() {
             <p>
               Page {currentPage} of {totalPages}
             </p>
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -283,6 +346,7 @@ export default function Sessions() {
               >
                 Previous
               </button>
+
               <button
                 type="button"
                 onClick={() => setPage(currentPage + 1)}
@@ -330,30 +394,55 @@ function EditSessionDialog({
   const save = useMutation({
     mutationFn: async () => {
       const updates: Promise<unknown>[] = [];
-      if (nextStatus !== session.status) updates.push(updateSessionStatus(session.id, nextStatus));
+
+      if (nextStatus !== session.status) {
+        updates.push(updateSessionStatus(session.id, nextStatus));
+      }
+
       const newBag = bag.trim() === "" ? null : bag.trim();
-      if (newBag !== (session.bag_number ?? null)) updates.push(updateBag(session.id, newBag));
+
+      if (newBag !== (session.bag_number ?? null)) {
+        updates.push(updateBag(session.id, newBag));
+      }
+
       await Promise.all(updates);
       return updates.length;
     },
+
     onSuccess: (changed) => (changed ? onSaved() : onClose()),
     onError,
   });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="edit-session-title" className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 id="edit-session-title" className="text-lg font-bold text-[#0d0d0d]">Edit session</h2>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-session-title"
+        className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+      >
+        <h2
+          id="edit-session-title"
+          className="text-lg font-bold text-[#0d0d0d]"
+        >
+          Edit session
+        </h2>
+
         <p className="mt-1 text-sm text-[#888ca0]">
           {session.student_id} · {session.student_email}
         </p>
 
         <div className="mt-5 space-y-4">
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-[#2d3748]">Status</span>
+            <span className="text-sm font-medium text-[#2d3748]">
+              Status
+            </span>
+
             <select
               value={nextStatus}
-              onChange={(e) => setNextStatus(e.target.value as SessionStatus)}
+              onChange={(e) =>
+                setNextStatus(e.target.value as SessionStatus)
+              }
               className="h-11 w-full rounded-[4px] border border-[#e2e8f0] bg-white px-3 text-sm text-[#2d3748] outline-none focus:border-[#9c5127]"
             >
               <option value="active">Checked in</option>
@@ -363,7 +452,10 @@ function EditSessionDialog({
           </label>
 
           <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-[#2d3748]">Bag ID</span>
+            <span className="text-sm font-medium text-[#2d3748]">
+              Bag ID
+            </span>
+
             <input
               type="text"
               value={bag}
@@ -383,6 +475,7 @@ function EditSessionDialog({
           >
             Cancel
           </button>
+
           <button
             type="button"
             onClick={() => save.mutate()}
