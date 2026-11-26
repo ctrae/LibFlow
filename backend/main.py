@@ -28,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(library_router)
+app.include_router(library_router, prefix="/api")
 
 
 @app.get("/health", tags=["System"])
