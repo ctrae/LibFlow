@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Set ENFORCE_OPENING_HOURS=false in .env to test or demo outside hours.
     enforce_opening_hours: bool = True
     library_open_time: str = "08:30"
-    library_close_time: str = "23:00"
+    library_close_time: str = "18:00"
     library_utc_offset_hours: int = -5
 
     model_config = SettingsConfigDict(
