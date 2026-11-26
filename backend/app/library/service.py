@@ -1,0 +1,411 @@
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from fastapi import HTTPException
+
+from app.core.config import Settings, get_settings
+from app.library.repository import LibraryRepository
+from app.library.schemas import (
+    CheckInRequest,
+    CheckOutRequest,
+    ExtendStayRequest,
+    StatusUpdateRequest,
+)
+
+
+class LibraryService:
+    """LIBFLOW business rules. No direct database calls live here."""
+
+    def __init__(self, repository: LibraryRepository, settings: Settings | None = None):
+        self.repository = repository
+        self.settings = settings or get_settings()
+
+    def _validate_report_range(self, start: date, end: date):
+        today = datetime.now(ZoneInfo("America/Jamaica")).date()
+
+        if end < start:
+            raise HTTPException(
+                status_code=400,
+                detail="End date must be on or after start date.",
+            )
+
+        if end > today:
+            raise HTTPException(
+                status_code=400,
+                detail="Reports can only be generated for past or current dates.",
+            )
+
+    def is_library_open(self, now_utc: datetime) -> bool:
+        """True if check-in is allowed at this moment (SR-01: opening hours only)."""
+        s = self.settings
+        if not s.enforce_opening_hours:
+            return True
+        local = now_utc.astimezone(timezone(timedelta(hours=s.library_utc_offset_hours)))
+        opens = time.fromisoformat(s.library_open_time)
+        closes = time.fromisoformat(s.library_close_time)
+        return opens <= local.time() < closes
+
+    def check_in(self, request: CheckInRequest, now: datetime | None = None, staff_override: bool = False):
+        """Register a visit. `staff_override` (staff route only) skips the
+        opening-hours rule; the one-active-session rule still applies."""
+        now = now or datetime.now(timezone.utc)
+
+        if not staff_override and not self.is_library_open(now):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Check-in is only available during library opening hours "
+                    f"({self.settings.library_open_time} to {self.settings.library_close_time})."
+                ),
+            )
+
+        if self.repository.find_active_session(request.student_id):
+            raise HTTPException(
+                status_code=409,
+                detail="Student already has an active library session.",
+            )
+
+        expires_at = now + timedelta(minutes=request.allotted_minutes)
+
+        bag_number = None
+
+        if request.has_bag:
+            active_bags = self.repository.get_active_bag_numbers()
+
+            used_numbers = set()
+
+            for bag in active_bags:
+                if not bag.startswith("BAG-"):
+                    continue
+
+                try:
+                    number = int(bag[4:])
+                except ValueError:
+                    continue
+
+                if 1 <= number <= 999:
+                    used_numbers.add(number)
+
+            for number in range(1, 1000):
+                if number not in used_numbers:
+                    bag_number = f"BAG-{number:03d}"
+                    break
+
+            if bag_number is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="All bag numbers are currently in use.",
+                )
+
+        try:
+            session = self.repository.create_session(
+                {
+                    "student_id": request.student_id,
+                    "student_email": str(request.student_email).lower(),
+                    "check_in": now.isoformat(),
+                    "expires_at": expires_at.isoformat(),
+                    "allotted_minutes": request.allotted_minutes,
+                    "zone": request.zone,
+                    "bag_number": bag_number,
+                    "visit_reason": request.visit_reason,
+                    "status": "active",
+                }
+            )
+        except Exception as exc:
+            # The database unique indexes remain the final race-condition guard.
+            raise HTTPException(
+                status_code=409,
+                detail=f"Could not create session. It may conflict with an active session or bag: {exc}",
+            ) from exc
+
+        return {
+            "session_id": session["id"],
+            "student_id": session["student_id"],
+            "check_in": session["check_in"],
+            "expires_at": expires_at,
+            "status": "active",
+        }
+
+    def checkout(self, session_id: str):
+        session = self.repository.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        if session["status"] != "active":
+            raise HTTPException(status_code=409, detail="Session is no longer active.")
+
+        now = datetime.now(timezone.utc).isoformat()
+        updated = self.repository.update_session(
+            session_id,
+            {"check_out": now, "status": "exited"},
+        )
+        if not updated:
+            raise HTTPException(status_code=409, detail="Session could not be checked out.")
+
+        return {
+            "session_id": updated["id"],
+            "student_id": updated["student_id"],
+            "check_out": updated["check_out"],
+            "status": "exited",
+        }
+
+    def checkout_by_student(self, request: CheckOutRequest):
+        if not request.student_id or not request.student_email:
+            raise HTTPException(
+                status_code=400,
+                detail="student_id and student_email are required for student checkout.",
+            )
+
+        result = self.repository.rpc(
+            "student_check_out",
+            {
+                "p_student_id": request.student_id,
+                "p_email": str(request.student_email).lower(),
+            },
+        )
+        if result.data is not True:
+            raise HTTPException(
+                status_code=404,
+                detail="No matching active session was found.",
+            )
+
+        session = self.repository.find_active_session(request.student_id)
+        # The RPC has closed the active session, so fetch recent rows instead.
+        recent = self.repository.get_student_active_or_recent(request.student_id, limit=1)
+        if not recent:
+            raise HTTPException(status_code=404, detail="Checkout completed but session could not be read.")
+
+        closed = recent[0]
+        return {
+            "session_id": closed["id"],
+            "student_id": closed["student_id"],
+            "check_out": closed["check_out"],
+            "status": "exited",
+        }
+
+    def get_session(self, session_id: str):
+        session = self.repository.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        return session
+
+    def get_sessions(self, status: str | None = None):
+        if status and status not in {"active", "exited", "expired"}:
+            raise HTTPException(status_code=400, detail="Invalid session status.")
+        return self.repository.list_sessions(status)
+
+    def occupancy(self):
+        return {"occupancy": self.repository.count_active_sessions()}
+
+    def update_status(self, session_id: str, request: StatusUpdateRequest):
+        session = self.repository.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found.")
+
+        payload = {"status": request.status}
+        if request.status == "exited" and not session.get("check_out"):
+            payload["check_out"] = datetime.now(timezone.utc).isoformat()
+
+        updated = self.repository.update_session(session_id, payload)
+        if not updated:
+            raise HTTPException(status_code=409, detail="Session status could not be updated.")
+
+        return {
+            "session_id": updated["id"],
+            "status": updated["status"],
+            "updated": True,
+        }
+
+    def extend_stay(
+        self,
+        session_id: str,
+        request: ExtendStayRequest,
+    ):
+        session = self.repository.get_session(session_id)
+
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail="Session not found.",
+            )
+
+        if session["status"] != "active":
+            raise HTTPException(
+                status_code=409,
+                detail="Only active sessions can be extended.",
+            )
+
+        current_expires_at = session.get("expires_at")
+
+        if not current_expires_at:
+            raise HTTPException(
+                status_code=409,
+                detail="Session does not have a valid expiration time.",
+            )
+
+        try:
+            if isinstance(current_expires_at, str):
+                current_expires_at = datetime.fromisoformat(
+                    current_expires_at.replace("Z", "+00:00")
+                )
+
+            if current_expires_at.tzinfo is None:
+                current_expires_at = current_expires_at.replace(
+                    tzinfo=timezone.utc
+                )
+
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="Session expiration time is invalid.",
+            ) from exc
+
+        now = datetime.now(timezone.utc)
+
+        if current_expires_at <= now:
+            raise HTTPException(
+                status_code=409,
+                detail="The session has already expired.",
+            )
+
+        new_expires_at = (
+            current_expires_at
+            + timedelta(minutes=request.extension_minutes)
+        )
+
+        current_allotted_minutes = session.get("allotted_minutes") or 0
+
+        new_allotted_minutes = (
+            current_allotted_minutes
+            + request.extension_minutes
+        )
+
+        try:
+            updated = self.repository.update_session(
+                session_id,
+                {
+                    "expires_at": new_expires_at.isoformat(),
+                    "allotted_minutes": new_allotted_minutes,
+                },
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Could not extend stay: {exc}",
+            ) from exc
+
+        if not updated:
+            raise HTTPException(
+                status_code=409,
+                detail="Session could not be extended.",
+            )
+
+        return {
+            "session_id": updated["id"],
+            "student_id": updated["student_id"],
+            "extension_minutes": request.extension_minutes,
+            "allotted_minutes": updated["allotted_minutes"],
+            "expires_at": updated["expires_at"],
+            "status": "active",
+        }
+
+    def expire_overdue(self):
+        result = self.repository.rpc("expire_overdue_sessions")
+        return {"expired_count": int(result.data or 0)}
+
+    def get_active_bags(self):
+        # Sessions use `id`; the API exposes it as `session_id`.
+        return [
+            {**row, "session_id": row["id"]}
+            for row in self.repository.list_active_bags()
+        ]
+
+    def update_bag(self, session_id: str, bag_number: str | None):
+        session = self.repository.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        if session["status"] != "active":
+            raise HTTPException(status_code=409, detail="Only active sessions can have a bag assigned.")
+
+        try:
+            updated = self.repository.update_session(
+                session_id,
+                {"bag_number": bag_number},
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Bag number is already in use or invalid: {exc}",
+            ) from exc
+
+        return {
+            "session_id": updated["id"],
+            "student_id": updated["student_id"],
+            "bag_number": updated["bag_number"],
+            "status": updated["status"],
+        }
+
+    def get_events(self, session_id: str | None = None):
+        if session_id and not self.repository.get_session(session_id):
+            raise HTTPException(status_code=404, detail="Session not found.")
+        return self.repository.list_events(session_id)
+
+    def hourly_occupancy(self, report_date: date):
+        self._validate_report_range(report_date, report_date)
+        result = self.repository.rpc(
+            "report_hourly_occupancy",
+            {"p_date": report_date.isoformat()},
+        )
+        return result.data or []
+
+    def daily_totals(self, start: date, end: date):
+        self._validate_report_range(start, end)
+        result = self.repository.rpc(
+            "report_daily_totals",
+            {"p_start": start.isoformat(), "p_end": end.isoformat()},
+        )
+        return result.data or []
+
+    def average_stay(self, start: date, end: date):
+        self._validate_report_range(start, end)
+        result = self.repository.rpc(
+            "report_average_stay",
+            {"p_start": start.isoformat(), "p_end": end.isoformat()},
+        )
+        rows = result.data or []
+        row = rows[0] if rows else {"avg_stay_minutes": 0, "completed_visits": 0}
+        return row
+
+    def total_checkouts(self, start: date, end: date):
+        self._validate_report_range(start, end)
+        result = self.repository.rpc(
+            "report_total_checkouts",
+            {"p_start": start.isoformat(), "p_end": end.isoformat()},
+        )
+        rows = result.data or []
+        row = rows[0] if rows else {"total_checkouts": 0}
+        return int(row["total_checkouts"])
+
+    def save_daily_total(self, report_date: date):
+        result = self.repository.rpc(
+            "save_daily_total",
+            {"p_day": report_date.isoformat()},
+        )
+        return result.data
+
+    def list_staff(self):
+        return self.repository.list_staff()
+
+    def add_staff(self, user_id: str, role: str):
+        try:
+            return self.repository.add_staff(user_id, role)
+        except Exception as exc:
+            raise HTTPException(status_code=409, detail=f"Could not add staff member: {exc}") from exc
+
+    def remove_staff(self, user_id: str):
+        self.repository.remove_staff(user_id)
+        return {"removed": True, "user_id": user_id}
+
+    def student_history(self, student_id: str):
+        if not student_id.isdigit() or len(student_id) != 9:
+            raise HTTPException(status_code=400, detail="Student ID must contain exactly 9 digits.")
+        return self.repository.get_student_active_or_recent(student_id, limit=50)

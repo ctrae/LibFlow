@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Other generated build output
+dist/
+build/
+coverage/
+
+# Environment variables and secrets
+.env*
+!.env.example
+
+# Python environment and generated cache files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Logs
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
